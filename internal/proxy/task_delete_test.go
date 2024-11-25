@@ -161,7 +161,7 @@ func TestDeleteTask_Execute(t *testing.T) {
 			},
 		}
 
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(nil, errors.New("mock error"))
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(nil, errors.New("mock error"))
 		assert.Error(t, dt.Execute(context.Background()))
 	})
 
@@ -190,7 +190,7 @@ func TestDeleteTask_Execute(t *testing.T) {
 			primaryKeys: pk,
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 
 		assert.Error(t, dt.Execute(context.Background()))
 	})
@@ -226,7 +226,7 @@ func TestDeleteTask_Execute(t *testing.T) {
 			primaryKeys: pk,
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		stream.EXPECT().Produce(mock.Anything).Return(errors.New("mock error"))
 		assert.Error(t, dt.Execute(context.Background()))
 	})
@@ -535,7 +535,7 @@ func TestDeleteRunner_Run(t *testing.T) {
 			},
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		mockMgr.EXPECT().getChannels(collectionID).Return(channels, nil)
 		stream.EXPECT().Produce(mock.Anything).Return(fmt.Errorf("mock error"))
 
@@ -644,7 +644,7 @@ func TestDeleteRunner_Run(t *testing.T) {
 			},
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		mockMgr.EXPECT().getChannels(collectionID).Return(channels, nil)
 		stream.EXPECT().Produce(mock.Anything).Return(nil)
 
@@ -768,7 +768,7 @@ func TestDeleteRunner_Run(t *testing.T) {
 			},
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		mockMgr.EXPECT().getChannels(collectionID).Return(channels, nil)
 		lb.EXPECT().Execute(mock.Anything, mock.Anything).Call.Return(func(ctx context.Context, workload CollectionWorkLoad) error {
 			return workload.exec(ctx, 1, qn, "")
@@ -830,7 +830,7 @@ func TestDeleteRunner_Run(t *testing.T) {
 			},
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		mockMgr.EXPECT().getChannels(collectionID).Return(channels, nil)
 		lb.EXPECT().Execute(mock.Anything, mock.Anything).Call.Return(func(ctx context.Context, workload CollectionWorkLoad) error {
 			return workload.exec(ctx, 1, qn, "")
@@ -911,7 +911,7 @@ func TestDeleteRunner_Run(t *testing.T) {
 			},
 		}
 		stream := msgstream.NewMockMsgStream(t)
-		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything).Return(stream, nil)
+		mockMgr.EXPECT().getOrCreateDmlStream(mock.Anything, mock.Anything).Return(stream, nil)
 		mockMgr.EXPECT().getChannels(collectionID).Return(channels, nil)
 		lb.EXPECT().Execute(mock.Anything, mock.Anything).Call.Return(func(ctx context.Context, workload CollectionWorkLoad) error {
 			return workload.exec(ctx, 1, qn, "")

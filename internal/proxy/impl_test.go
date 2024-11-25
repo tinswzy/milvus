@@ -440,7 +440,7 @@ func TestProxy_FlushAll_DbCollection(t *testing.T) {
 			rpcRequestChannel := Params.CommonCfg.ReplicateMsgChannel.GetValue()
 			node.replicateMsgStream, err = node.factory.NewMsgStream(node.ctx)
 			assert.NoError(t, err)
-			node.replicateMsgStream.AsProducer([]string{rpcRequestChannel})
+			node.replicateMsgStream.AsProducer(ctx, []string{rpcRequestChannel})
 
 			Params.Save(Params.ProxyCfg.MaxTaskNum.Key, "1000")
 			node.sched, err = newTaskScheduler(ctx, node.tsoAllocator, node.factory)
@@ -483,7 +483,7 @@ func TestProxy_FlushAll(t *testing.T) {
 	rpcRequestChannel := Params.CommonCfg.ReplicateMsgChannel.GetValue()
 	node.replicateMsgStream, err = node.factory.NewMsgStream(node.ctx)
 	assert.NoError(t, err)
-	node.replicateMsgStream.AsProducer([]string{rpcRequestChannel})
+	node.replicateMsgStream.AsProducer(ctx, []string{rpcRequestChannel})
 
 	Params.Save(Params.ProxyCfg.MaxTaskNum.Key, "1000")
 	node.sched, err = newTaskScheduler(ctx, node.tsoAllocator, node.factory)
@@ -955,7 +955,7 @@ func TestProxyCreateDatabase(t *testing.T) {
 	rpcRequestChannel := Params.CommonCfg.ReplicateMsgChannel.GetValue()
 	node.replicateMsgStream, err = node.factory.NewMsgStream(node.ctx)
 	assert.NoError(t, err)
-	node.replicateMsgStream.AsProducer([]string{rpcRequestChannel})
+	node.replicateMsgStream.AsProducer(ctx, []string{rpcRequestChannel})
 
 	t.Run("create database fail", func(t *testing.T) {
 		rc := mocks.NewMockRootCoordClient(t)
@@ -1015,7 +1015,7 @@ func TestProxyDropDatabase(t *testing.T) {
 	rpcRequestChannel := Params.CommonCfg.ReplicateMsgChannel.GetValue()
 	node.replicateMsgStream, err = node.factory.NewMsgStream(node.ctx)
 	assert.NoError(t, err)
-	node.replicateMsgStream.AsProducer([]string{rpcRequestChannel})
+	node.replicateMsgStream.AsProducer(ctx, []string{rpcRequestChannel})
 
 	t.Run("drop database fail", func(t *testing.T) {
 		rc := mocks.NewMockRootCoordClient(t)
@@ -1496,7 +1496,7 @@ func TestProxy_ReplicateMessage(t *testing.T) {
 		factory := newMockMsgStreamFactory()
 		msgStreamObj := msgstream.NewMockMsgStream(t)
 		msgStreamObj.EXPECT().SetRepackFunc(mock.Anything).Return()
-		msgStreamObj.EXPECT().AsProducer(mock.Anything).Return()
+		msgStreamObj.EXPECT().AsProducer(mock.Anything, mock.Anything).Return()
 		msgStreamObj.EXPECT().EnableProduce(mock.Anything).Return()
 		msgStreamObj.EXPECT().Close().Return()
 		mockMsgID1 := mqcommon.NewMockMessageID(t)
