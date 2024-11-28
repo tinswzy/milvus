@@ -330,7 +330,7 @@ func (kc *Catalog) AlterSegments(ctx context.Context, segments []*datapb.Segment
 		maps.Copy(kvs, binlogKvs)
 	}
 
-	return kc.SaveByBatch(kvs)
+	return kc.SaveByBatch(ctx, kvs)
 }
 
 func (kc *Catalog) handleDroppedSegment(segment *datapb.SegmentInfo) (kvs map[string]string, err error) {
@@ -349,13 +349,13 @@ func (kc *Catalog) handleDroppedSegment(segment *datapb.SegmentInfo) (kvs map[st
 	return
 }
 
-func (kc *Catalog) SaveByBatch(kvs map[string]string) error {
+func (kc *Catalog) SaveByBatch(ctx context.Context, kvs map[string]string) error {
 	saveFn := func(partialKvs map[string]string) error {
 		return kc.MetaKv.MultiSave(partialKvs)
 	}
 	err := etcd.SaveByBatchWithLimit(kvs, util.MaxEtcdTxnNum, saveFn)
 	if err != nil {
-		log.Error("failed to save by batch", zap.Error(err))
+		log.Ctx(ctx).Error("failed to save by batch", zap.Error(err))
 		return err
 	}
 	return nil
@@ -448,10 +448,10 @@ func (kc *Catalog) MarkChannelAdded(ctx context.Context, channel string) error {
 	key := buildChannelRemovePath(channel)
 	err := kc.MetaKv.Save(key, NonRemoveFlagTomestone)
 	if err != nil {
-		log.Error("failed to mark channel added", zap.String("channel", channel), zap.Error(err))
+		log.Ctx(ctx).Error("failed to mark channel added", zap.String("channel", channel), zap.Error(err))
 		return err
 	}
-	log.Info("NON remove flag tombstone added", zap.String("channel", channel))
+	log.Ctx(ctx).Info("NON remove flag tombstone added", zap.String("channel", channel))
 	return nil
 }
 
@@ -459,10 +459,10 @@ func (kc *Catalog) MarkChannelDeleted(ctx context.Context, channel string) error
 	key := buildChannelRemovePath(channel)
 	err := kc.MetaKv.Save(key, RemoveFlagTomestone)
 	if err != nil {
-		log.Error("Failed to mark channel dropped", zap.String("channel", channel), zap.Error(err))
+		log.Ctx(ctx).Error("Failed to mark channel dropped", zap.String("channel", channel), zap.Error(err))
 		return err
 	}
-	log.Info("remove flag tombstone added", zap.String("channel", channel))
+	log.Ctx(ctx).Info("remove flag tombstone added", zap.String("channel", channel))
 	return nil
 }
 
@@ -484,7 +484,7 @@ func (kc *Catalog) ChannelExists(ctx context.Context, channel string) bool {
 // DropChannel removes channel remove flag after whole procedure is finished
 func (kc *Catalog) DropChannel(ctx context.Context, channel string) error {
 	key := buildChannelRemovePath(channel)
-	log.Info("removing channel remove path", zap.String("channel", channel))
+	log.Ctx(ctx).Info("removing channel remove path", zap.String("channel", channel))
 	return kc.MetaKv.Remove(key)
 }
 
@@ -500,7 +500,7 @@ func (kc *Catalog) ListChannelCheckpoint(ctx context.Context) (map[string]*msgpb
 		channelCP := &msgpb.MsgPosition{}
 		err = proto.Unmarshal([]byte(value), channelCP)
 		if err != nil {
-			log.Error("unmarshal channelCP failed when ListChannelCheckpoint", zap.Error(err))
+			log.Ctx(ctx).Error("unmarshal channelCP failed when ListChannelCheckpoint", zap.Error(err))
 			return nil, err
 		}
 		ss := strings.Split(key, "/")
@@ -530,7 +530,7 @@ func (kc *Catalog) SaveChannelCheckpoints(ctx context.Context, positions []*msgp
 		}
 		kvs[k] = string(v)
 	}
-	return kc.SaveByBatch(kvs)
+	return kc.SaveByBatch(ctx, kvs)
 }
 
 func (kc *Catalog) DropChannelCheckpoint(ctx context.Context, vChannel string) error {
@@ -577,7 +577,7 @@ func (kc *Catalog) CreateIndex(ctx context.Context, index *model.Index) error {
 func (kc *Catalog) ListIndexes(ctx context.Context) ([]*model.Index, error) {
 	_, values, err := kc.MetaKv.LoadWithPrefix(util.FieldIndexPrefix)
 	if err != nil {
-		log.Error("list index meta fail", zap.String("prefix", util.FieldIndexPrefix), zap.Error(err))
+		log.Ctx(ctx).Error("list index meta fail", zap.String("prefix", util.FieldIndexPrefix), zap.Error(err))
 		return nil, err
 	}
 
@@ -586,7 +586,7 @@ func (kc *Catalog) ListIndexes(ctx context.Context) ([]*model.Index, error) {
 		meta := &indexpb.FieldIndex{}
 		err = proto.Unmarshal([]byte(value), meta)
 		if err != nil {
-			log.Warn("unmarshal index info failed", zap.Error(err))
+			log.Ctx(ctx).Warn("unmarshal index info failed", zap.Error(err))
 			return nil, err
 		}
 
@@ -627,7 +627,7 @@ func (kc *Catalog) DropIndex(ctx context.Context, collID typeutil.UniqueID, drop
 
 	err := kc.MetaKv.Remove(key)
 	if err != nil {
-		log.Error("drop collection index meta fail", zap.Int64("collectionID", collID),
+		log.Ctx(ctx).Error("drop collection index meta fail", zap.Int64("collectionID", collID),
 			zap.Int64("indexID", dropIdxID), zap.Error(err))
 		return err
 	}
@@ -644,7 +644,7 @@ func (kc *Catalog) CreateSegmentIndex(ctx context.Context, segIdx *model.Segment
 	}
 	err = kc.MetaKv.Save(key, string(value))
 	if err != nil {
-		log.Error("failed to save segment index meta in etcd", zap.Int64("buildID", segIdx.BuildID),
+		log.Ctx(ctx).Error("failed to save segment index meta in etcd", zap.Int64("buildID", segIdx.BuildID),
 			zap.Int64("segmentID", segIdx.SegmentID), zap.Error(err))
 		return err
 	}
@@ -654,7 +654,7 @@ func (kc *Catalog) CreateSegmentIndex(ctx context.Context, segIdx *model.Segment
 func (kc *Catalog) ListSegmentIndexes(ctx context.Context) ([]*model.SegmentIndex, error) {
 	_, values, err := kc.MetaKv.LoadWithPrefix(util.SegmentIndexPrefix)
 	if err != nil {
-		log.Error("list segment index meta fail", zap.String("prefix", util.SegmentIndexPrefix), zap.Error(err))
+		log.Ctx(ctx).Error("list segment index meta fail", zap.String("prefix", util.SegmentIndexPrefix), zap.Error(err))
 		return nil, err
 	}
 
@@ -663,7 +663,7 @@ func (kc *Catalog) ListSegmentIndexes(ctx context.Context) ([]*model.SegmentInde
 		segmentIndexInfo := &indexpb.SegmentIndex{}
 		err = proto.Unmarshal([]byte(value), segmentIndexInfo)
 		if err != nil {
-			log.Warn("unmarshal segment index info failed", zap.Error(err))
+			log.Ctx(ctx).Warn("unmarshal segment index info failed", zap.Error(err))
 			return segIndexes, err
 		}
 
@@ -691,7 +691,7 @@ func (kc *Catalog) DropSegmentIndex(ctx context.Context, collID, partID, segID, 
 
 	err := kc.MetaKv.Remove(key)
 	if err != nil {
-		log.Error("drop segment index meta fail", zap.Int64("buildID", buildID), zap.Error(err))
+		log.Ctx(ctx).Error("drop segment index meta fail", zap.Int64("buildID", buildID), zap.Error(err))
 		return err
 	}
 
@@ -838,7 +838,7 @@ func (kc *Catalog) SaveCompactionTask(ctx context.Context, coll *datapb.Compacti
 	}
 	kvs := make(map[string]string)
 	kvs[k] = v
-	return kc.SaveByBatch(kvs)
+	return kc.SaveByBatch(ctx, kvs)
 }
 
 func (kc *Catalog) DropCompactionTask(ctx context.Context, task *datapb.CompactionTask) error {
@@ -913,7 +913,7 @@ func (kc *Catalog) SavePartitionStatsInfo(ctx context.Context, coll *datapb.Part
 	}
 	kvs := make(map[string]string)
 	kvs[k] = v
-	return kc.SaveByBatch(kvs)
+	return kc.SaveByBatch(ctx, kvs)
 }
 
 func (kc *Catalog) DropPartitionStatsInfo(ctx context.Context, info *datapb.PartitionStatsInfo) error {

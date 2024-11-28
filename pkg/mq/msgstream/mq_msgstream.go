@@ -124,7 +124,7 @@ func NewMqMsgStream(ctx context.Context,
 func (ms *mqMsgStream) AsProducer(channels []string) {
 	for _, channel := range channels {
 		if len(channel) == 0 {
-			log.Error("MsgStream asProducer's channel is an empty string")
+			log.Ctx(ms.ctx).Error("MsgStream asProducer's channel is an empty string")
 			break
 		}
 
@@ -205,7 +205,7 @@ func (ms *mqMsgStream) AsConsumer(ctx context.Context, channels []string, subNam
 
 			panic(fmt.Sprintf("%s, errors = %s", errMsg, err.Error()))
 		}
-		log.Info("Successfully create consumer", zap.String("channel", channel), zap.String("subname", subName))
+		log.Ctx(ms.ctx).Info("Successfully create consumer", zap.String("channel", channel), zap.String("subname", subName))
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func (ms *mqMsgStream) SetRepackFunc(repackFunc RepackFunc) {
 }
 
 func (ms *mqMsgStream) Close() {
-	log.Info("start to close mq msg stream",
+	log.Ctx(ms.ctx).Info("start to close mq msg stream",
 		zap.Int("producer num", len(ms.producers)),
 		zap.Int("consumer num", len(ms.consumers)))
 	ms.streamCancel()
@@ -275,11 +275,11 @@ func (ms *mqMsgStream) isEnabledProduce() bool {
 
 func (ms *mqMsgStream) Produce(msgPack *MsgPack) error {
 	if !ms.isEnabledProduce() {
-		log.Warn("can't produce the msg in the backup instance", zap.Stack("stack"))
+		log.Ctx(ms.ctx).Warn("can't produce the msg in the backup instance", zap.Stack("stack"))
 		return merr.ErrDenyProduceMsg
 	}
 	if msgPack == nil || len(msgPack.Msgs) <= 0 {
-		log.Debug("Warning: Receive empty msgPack")
+		log.Ctx(ms.ctx).Debug("Warning: Receive empty msgPack")
 		return nil
 	}
 	if len(ms.producers) <= 0 {
@@ -356,7 +356,7 @@ func (ms *mqMsgStream) Broadcast(msgPack *MsgPack) (map[string][]MessageID, erro
 	isCreateCollectionMsg := len(msgPack.Msgs) == 1 && msgPack.Msgs[0].Type() == commonpb.MsgType_CreateCollection
 
 	if !ms.isEnabledProduce() && !isCreateCollectionMsg {
-		log.Warn("can't broadcast the msg in the backup instance", zap.Stack("stack"))
+		log.Ctx(ms.ctx).Warn("can't broadcast the msg in the backup instance", zap.Stack("stack"))
 		return ids, merr.ErrDenyProduceMsg
 	}
 	for _, v := range msgPack.Msgs {
@@ -432,14 +432,14 @@ func (ms *mqMsgStream) receiveMsg(consumer mqwrapper.Consumer) {
 			}
 			consumer.Ack(msg)
 			if msg.Payload() == nil {
-				log.Warn("MqMsgStream get msg whose payload is nil")
+				log.Ctx(ms.ctx).Warn("MqMsgStream get msg whose payload is nil")
 				continue
 			}
 			// not need to check the preCreatedTopic is empty, related issue: https://github.com/milvus-io/milvus/issues/27295
 			// if the message not belong to the topic, will skip it
 			tsMsg, err := ms.getTsMsgFromConsumerMsg(msg)
 			if err != nil {
-				log.Warn("Failed to getTsMsgFromConsumerMsg", zap.Error(err))
+				log.Ctx(ms.ctx).Warn("Failed to getTsMsgFromConsumerMsg", zap.Error(err))
 				continue
 			}
 			pos := tsMsg.Position()
@@ -501,13 +501,13 @@ func (ms *mqMsgStream) Seek(ctx context.Context, msgPositions []*MsgPosition, in
 			}
 		}
 
-		log.Info("MsgStream seek begin", zap.String("channel", mp.ChannelName), zap.Any("MessageID", mp.MsgID), zap.Bool("includeCurrentMsg", includeCurrentMsg))
+		log.Ctx(ctx).Info("MsgStream seek begin", zap.String("channel", mp.ChannelName), zap.Any("MessageID", mp.MsgID), zap.Bool("includeCurrentMsg", includeCurrentMsg))
 		err = consumer.Seek(messageID, includeCurrentMsg)
 		if err != nil {
-			log.Warn("Failed to seek", zap.String("channel", mp.ChannelName), zap.Error(err))
+			log.Ctx(ctx).Warn("Failed to seek", zap.String("channel", mp.ChannelName), zap.Error(err))
 			return err
 		}
-		log.Info("MsgStream seek finished", zap.String("channel", mp.ChannelName))
+		log.Ctx(ctx).Info("MsgStream seek finished", zap.String("channel", mp.ChannelName))
 	}
 	return nil
 }
@@ -662,7 +662,7 @@ func (ms *MqTtMsgStream) bufMsgPackToChannel() {
 
 	// block here until addConsumer
 	if _, ok := <-ms.syncConsumer; !ok {
-		log.Warn("consumer closed!")
+		log.Ctx(ms.ctx).Warn("consumer closed!")
 		return
 	}
 
@@ -761,7 +761,7 @@ func (ms *MqTtMsgStream) bufMsgPackToChannel() {
 			uniqueMsgs := make([]TsMsg, 0, len(timeTickBuf))
 			for _, msg := range timeTickBuf {
 				if isDMLMsg(msg) && idset.Contain(msg.ID()) {
-					log.Warn("mqTtMsgStream, found duplicated msg", zap.Int64("msgID", msg.ID()))
+					log.Ctx(ms.ctx).Warn("mqTtMsgStream, found duplicated msg", zap.Int64("msgID", msg.ID()))
 					continue
 				}
 				idset.Insert(msg.ID())
@@ -791,6 +791,7 @@ func (ms *MqTtMsgStream) bufMsgPackToChannel() {
 
 // Save all msgs into chanMsgBuf[] till receive one ttMsg
 func (ms *MqTtMsgStream) consumeToTtMsg(consumer mqwrapper.Consumer) {
+	log := log.Ctx(ms.ctx)
 	defer ms.chanWaitGroup.Done()
 	for {
 		select {
@@ -862,6 +863,7 @@ func (ms *MqTtMsgStream) Seek(ctx context.Context, msgPositions []*MsgPosition, 
 	var consumer mqwrapper.Consumer
 	var mp *MsgPosition
 	var err error
+	log := log.Ctx(ctx)
 	fn := func() (bool, error) {
 		var ok bool
 		consumer, ok = ms.consumers[mp.ChannelName]
@@ -879,7 +881,7 @@ func (ms *MqTtMsgStream) Seek(ctx context.Context, msgPositions []*MsgPosition, 
 				// try to use latest message ID first
 				seekMsgID, err = consumer.GetLatestMsgID()
 				if err != nil {
-					log.Ctx(ctx).Warn("Ignoring bad message id", zap.Error(err))
+					log.Warn("Ignoring bad message id", zap.Error(err))
 					return false, nil
 				}
 			} else {

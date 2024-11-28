@@ -18,6 +18,7 @@ package rootcoord
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"path"
 	"sort"
@@ -604,6 +605,7 @@ func (ss *SuffixSnapshot) Close() {
 
 // startBackgroundGC the data will clean up if key ts!=0 and expired
 func (ss *SuffixSnapshot) startBackgroundGC() {
+	log := log.Ctx(context.TODO())
 	log.Debug("suffix snapshot GC goroutine start!")
 	ticker := time.NewTicker(60 * time.Minute)
 	defer ticker.Stop()

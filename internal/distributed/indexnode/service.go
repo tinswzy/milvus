@@ -46,6 +46,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/util/logutil"
 	"github.com/milvus-io/milvus/pkg/util/netutil"
 	"github.com/milvus-io/milvus/pkg/util/paramtable"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
 )
 
 // Server is the grpc wrapper of IndexNode.
@@ -71,11 +72,11 @@ func (s *Server) Prepare() error {
 		netutil.OptHighPriorityToUsePort(paramtable.Get().IndexNodeGrpcServerCfg.Port.GetAsInt()),
 	)
 	if err != nil {
-		log.Warn("IndexNode fail to create net listener", zap.Error(err))
+		log.Ctx(s.loopCtx).Warn("IndexNode fail to create net listener", zap.Error(err))
 		return err
 	}
 	s.listener = listener
-	log.Info("IndexNode listen on", zap.String("address", listener.Addr().String()), zap.Int("port", listener.Port()))
+	log.Ctx(s.loopCtx).Info("IndexNode listen on", zap.String("address", listener.Addr().String()), zap.Int("port", listener.Port()))
 	paramtable.Get().Save(
 		paramtable.Get().IndexNodeGrpcServerCfg.Port.Key,
 		strconv.FormatInt(int64(listener.Port()), 10))
@@ -87,11 +88,11 @@ func (s *Server) Run() error {
 	if err := s.init(); err != nil {
 		return err
 	}
-	log.Debug("IndexNode init done ...")
+	log.Ctx(s.loopCtx).Debug("IndexNode init done ...")
 	if err := s.start(); err != nil {
 		return err
 	}
-	log.Debug("IndexNode start done ...")
+	log.Ctx(s.loopCtx).Debug("IndexNode start done ...")
 	return nil
 }
 
@@ -155,6 +156,7 @@ func (s *Server) startGrpcLoop() {
 func (s *Server) init() error {
 	etcdConfig := &paramtable.Get().EtcdCfg
 	var err error
+	log := log.Ctx(s.loopCtx)
 
 	defer func() {
 		if err != nil {
@@ -204,6 +206,7 @@ func (s *Server) init() error {
 
 // start starts IndexNode's grpc service.
 func (s *Server) start() error {
+	log := log.Ctx(s.loopCtx)
 	err := s.indexnode.Start()
 	if err != nil {
 		return err
@@ -219,9 +222,9 @@ func (s *Server) start() error {
 
 // Stop stops IndexNode's grpc service.
 func (s *Server) Stop() (err error) {
-	logger := log.With()
+	logger := log.Ctx(s.loopCtx)
 	if s.listener != nil {
-		logger = log.With(zap.String("address", s.listener.Address()))
+		logger = logger.With(zap.String("address", s.listener.Address()))
 	}
 	logger.Info("IndexNode stopping")
 	defer func() {
@@ -315,7 +318,8 @@ func (s *Server) DropJobsV2(ctx context.Context, request *workerpb.DropJobsV2Req
 
 // NewServer create a new IndexNode grpc server.
 func NewServer(ctx context.Context, factory dependency.Factory) (*Server, error) {
-	ctx1, cancel := context.WithCancel(ctx)
+	srvCtx := log.WithFields(ctx, zap.String("role", typeutil.IndexNodeRole))
+	ctx1, cancel := context.WithCancel(srvCtx)
 	node := indexnode.NewIndexNode(ctx1, factory)
 
 	return &Server{

@@ -403,6 +403,7 @@ func (t *clusteringCompactionTask) regeneratePartitionStats(tmpToResultSegments 
 }
 
 func (t *clusteringCompactionTask) processIndexing() error {
+	log := log.Ctx(context.TODO())
 	// wait for segment indexed
 	collectionIndexes := t.meta.GetIndexMeta().GetIndexesForCollection(t.GetTaskProto().GetCollectionID(), "")
 	if len(collectionIndexes) == 0 {
@@ -437,7 +438,7 @@ func (t *clusteringCompactionTask) markResultSegmentsVisible() error {
 
 	err := t.meta.UpdateSegmentsInfo(context.TODO(), operators...)
 	if err != nil {
-		log.Warn("markResultSegmentVisible UpdateSegmentsInfo fail", zap.Error(err))
+		log.Ctx(context.TODO()).Warn("markResultSegmentVisible UpdateSegmentsInfo fail", zap.Error(err))
 		return merr.WrapErrClusteringCompactionMetaError("markResultSegmentVisible UpdateSegmentsInfo", err)
 	}
 	return nil
@@ -451,7 +452,7 @@ func (t *clusteringCompactionTask) markInputSegmentsDropped() error {
 	}
 	err := t.meta.UpdateSegmentsInfo(context.TODO(), operators...)
 	if err != nil {
-		log.Warn("markInputSegmentsDropped UpdateSegmentsInfo fail", zap.Error(err))
+		log.Ctx(context.TODO()).Warn("markInputSegmentsDropped UpdateSegmentsInfo fail", zap.Error(err))
 		return merr.WrapErrClusteringCompactionMetaError("markInputSegmentsDropped UpdateSegmentsInfo", err)
 	}
 	return nil
@@ -495,6 +496,7 @@ func (t *clusteringCompactionTask) completeTask() error {
 }
 
 func (t *clusteringCompactionTask) processAnalyzing() error {
+	log := log.Ctx(context.TODO())
 	analyzeTask := t.meta.GetAnalyzeMeta().GetTask(t.GetTaskProto().GetAnalyzeTaskID())
 	if analyzeTask == nil {
 		log.Warn("analyzeTask not found", zap.Int64("id", t.GetTaskProto().GetAnalyzeTaskID()))
@@ -523,6 +525,7 @@ func (t *clusteringCompactionTask) resetSegmentCompacting() {
 }
 
 func (t *clusteringCompactionTask) processFailedOrTimeout() error {
+	log := log.Ctx(context.TODO())
 	log.Info("clean task", zap.Int64("triggerID", t.GetTaskProto().GetTriggerID()), zap.Int64("planID", t.GetTaskProto().GetPlanID()), zap.String("state", t.GetTaskProto().GetState().String()))
 
 	if err := t.sessions.DropCompactionPlan(t.GetTaskProto().GetNodeID(), &datapb.DropCompactionPlanRequest{
@@ -602,6 +605,7 @@ func (t *clusteringCompactionTask) processFailedOrTimeout() error {
 }
 
 func (t *clusteringCompactionTask) doAnalyze() error {
+	log := log.Ctx(context.TODO())
 	analyzeTask := &indexpb.AnalyzeTask{
 		CollectionID: t.GetTaskProto().GetCollectionID(),
 		PartitionID:  t.GetTaskProto().GetPartitionID(),
@@ -625,7 +629,7 @@ func (t *clusteringCompactionTask) doAnalyze() error {
 }
 
 func (t *clusteringCompactionTask) doCompact() error {
-	log := log.With(zap.Int64("planID", t.GetTaskProto().GetPlanID()), zap.String("type", t.GetTaskProto().GetType().String()))
+	log := log.Ctx(context.TODO()).With(zap.Int64("planID", t.GetTaskProto().GetPlanID()), zap.String("type", t.GetTaskProto().GetType().String()))
 	if t.NeedReAssignNodeID() {
 		log.RatedWarn(10, "not assign nodeID")
 		return nil
@@ -681,7 +685,7 @@ func (t *clusteringCompactionTask) updateAndSaveTaskMeta(opts ...compactionTaskO
 	task := t.ShadowClone(opts...)
 	err := t.saveTaskMeta(task)
 	if err != nil {
-		log.Warn("Failed to saveTaskMeta", zap.Error(err))
+		log.Ctx(context.TODO()).Warn("Failed to saveTaskMeta", zap.Error(err))
 		return merr.WrapErrClusteringCompactionMetaError("updateAndSaveTaskMeta", err) // retryable
 	}
 	t.SetTask(task)
@@ -692,7 +696,7 @@ func (t *clusteringCompactionTask) checkTimeout() bool {
 	if t.GetTaskProto().GetTimeoutInSeconds() > 0 {
 		diff := time.Since(time.Unix(t.GetTaskProto().GetStartTime(), 0)).Seconds()
 		if diff > float64(t.GetTaskProto().GetTimeoutInSeconds()) {
-			log.Warn("compaction timeout",
+			log.Ctx(context.TODO()).Warn("compaction timeout",
 				zap.Int32("timeout in seconds", t.GetTaskProto().GetTimeoutInSeconds()),
 				zap.Int64("startTime", t.GetTaskProto().GetStartTime()),
 			)
