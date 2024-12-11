@@ -19,6 +19,7 @@ package msgstream
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -123,9 +124,11 @@ func NewMqMsgStream(ctx context.Context,
 
 // AsProducer create producer to send message to channels
 func (ms *mqMsgStream) AsProducer(ctx context.Context, channels []string) {
+	ctx, sp := otel.Tracer("MqMsgStream").Start(ctx, "AsProducer")
+	defer sp.End()
 	for _, channel := range channels {
 		if len(channel) == 0 {
-			log.Ctx(ms.ctx).Error("MsgStream asProducer's channel is an empty string")
+			log.Ctx(ctx).Error("MsgStream asProducer's channel is an empty string")
 			break
 		}
 
@@ -137,6 +140,8 @@ func (ms *mqMsgStream) AsProducer(ctx context.Context, channels []string) {
 			if pp == nil {
 				return errors.New("Producer is nil")
 			}
+			sp.AddEvent(fmt.Sprintf("CreateProducer:%s", channel))
+			log.Ctx(ctx).Debug("Producer created", zap.String("channel", channel))
 
 			ms.producerLock.Lock()
 			defer ms.producerLock.Unlock()
@@ -144,7 +149,8 @@ func (ms *mqMsgStream) AsProducer(ctx context.Context, channels []string) {
 			ms.producerChannels = append(ms.producerChannels, channel)
 			return nil
 		}
-		err := retry.Do(context.TODO(), fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
+		err := retry.Do(log.WithFields(ctx, zap.String("action", "CreateProducer"), zap.String("channel", channel)),
+			fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
 		if err != nil {
 			errMsg := "Failed to create producer " + channel + ", error = " + err.Error()
 			panic(errMsg)
@@ -172,6 +178,8 @@ func (ms *mqMsgStream) CheckTopicValid(channel string) error {
 // AsConsumerWithPosition Create consumer to receive message from channels, with initial position
 // if initial position is set to latest, last message in the channel is exclusive
 func (ms *mqMsgStream) AsConsumer(ctx context.Context, channels []string, subName string, position common.SubscriptionInitialPosition) error {
+	ctx, sp := otel.Tracer("MqMsgStream").Start(ctx, "AsConsumer")
+	defer sp.End()
 	for _, channel := range channels {
 		if _, ok := ms.consumers[channel]; ok {
 			continue
@@ -189,6 +197,8 @@ func (ms *mqMsgStream) AsConsumer(ctx context.Context, channels []string, subNam
 			if pc == nil {
 				return errors.New("Consumer is nil")
 			}
+			sp.AddEvent(fmt.Sprintf("Subscribe %s at Position:%d", channel, position))
+			log.Ctx(ctx).Debug("Subscribed at channel", zap.String("channel", channel))
 
 			ms.consumerLock.Lock()
 			defer ms.consumerLock.Unlock()
@@ -197,7 +207,8 @@ func (ms *mqMsgStream) AsConsumer(ctx context.Context, channels []string, subNam
 			return nil
 		}
 
-		err := retry.Do(ctx, fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
+		err := retry.Do(log.WithFields(ctx, zap.String("action", "Subscribe"), zap.String("channel", channel)),
+			fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
 		if err != nil {
 			errMsg := fmt.Sprintf("Failed to create consumer %s", channel)
 			if merr.IsCanceledOrTimeout(err) {
@@ -206,7 +217,7 @@ func (ms *mqMsgStream) AsConsumer(ctx context.Context, channels []string, subNam
 
 			panic(fmt.Sprintf("%s, errors = %s", errMsg, err.Error()))
 		}
-		log.Ctx(ms.ctx).Info("Successfully create consumer", zap.String("channel", channel), zap.String("subname", subName))
+		log.Ctx(ctx).Info("Successfully create consumer", zap.String("channel", channel), zap.String("subname", subName))
 	}
 	return nil
 }
@@ -583,6 +594,8 @@ func (ms *MqTtMsgStream) addConsumer(consumer mqwrapper.Consumer, channel string
 
 // AsConsumerWithPosition subscribes channels as consumer for a MsgStream and seeks to a certain position.
 func (ms *MqTtMsgStream) AsConsumer(ctx context.Context, channels []string, subName string, position common.SubscriptionInitialPosition) error {
+	ctx, sp := otel.Tracer("MqTtMsgStream").Start(ctx, "AsConsumer")
+	defer sp.End()
 	for _, channel := range channels {
 		if _, ok := ms.consumers[channel]; ok {
 			continue
@@ -600,6 +613,8 @@ func (ms *MqTtMsgStream) AsConsumer(ctx context.Context, channels []string, subN
 			if pc == nil {
 				return errors.New("Consumer is nil")
 			}
+			sp.AddEvent(fmt.Sprintf("Subscribe %s at Position:%d", channel, position))
+			log.Ctx(ctx).Debug("Subscribed at channel", zap.String("channel", channel))
 
 			ms.consumerLock.Lock()
 			defer ms.consumerLock.Unlock()
@@ -607,7 +622,8 @@ func (ms *MqTtMsgStream) AsConsumer(ctx context.Context, channels []string, subN
 			return nil
 		}
 
-		err := retry.Do(ctx, fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
+		err := retry.Do(log.WithFields(ctx, zap.String("action", "Subscribe"), zap.String("channel", channel)),
+			fn, retry.Attempts(20), retry.Sleep(time.Millisecond*200), retry.MaxSleepTime(5*time.Second))
 		if err != nil {
 			errMsg := fmt.Sprintf("Failed to create consumer %s", channel)
 			if merr.IsCanceledOrTimeout(err) {

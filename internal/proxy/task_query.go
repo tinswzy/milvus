@@ -552,6 +552,7 @@ func (t *queryTask) PostExecute(ctx context.Context) error {
 		t.result.SessionTs = getMaxMvccTsFromChannels(t.channelsMvcc, t.BeginTs())
 	}
 	log.Debug("Query PostExecute done")
+	InjectTraceID(ctx, t.result.Status)
 	return nil
 }
 

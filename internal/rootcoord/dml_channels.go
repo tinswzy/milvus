@@ -20,6 +20,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"strconv"
 	"strings"
 	"sync"
@@ -302,7 +303,9 @@ func (d *dmlChannels) broadcast(chanNames []string, pack *msgstream.MsgPack) err
 	return nil
 }
 
-func (d *dmlChannels) broadcastMark(chanNames []string, pack *msgstream.MsgPack) (map[string][]byte, error) {
+func (d *dmlChannels) broadcastMark(ctx context.Context, chanNames []string, pack *msgstream.MsgPack) (map[string][]byte, error) {
+	ctx, sp := otel.Tracer("dmlChannels").Start(ctx, "addChannelsAndGetStartPositions")
+	defer sp.End()
 	result := make(map[string][]byte)
 	for _, chanName := range chanNames {
 		dms, err := d.getMsgStreamByName(chanName)
@@ -312,12 +315,15 @@ func (d *dmlChannels) broadcastMark(chanNames []string, pack *msgstream.MsgPack)
 
 		dms.mutex.RLock()
 		if dms.refcnt > 0 {
-			ids, err := dms.ms.Broadcast(d.ctx, pack)
+			ctx1, sp1 := otel.Tracer("dmlChannels").Start(ctx, "Broadcast")
+			ids, err := dms.ms.Broadcast(ctx1, pack)
 			if err != nil {
-				log.Ctx(d.ctx).Error("BroadcastMark failed", zap.Error(err), zap.String("chanName", chanName))
+				log.Ctx(ctx).Error("BroadcastMark failed", zap.Error(err), zap.String("chanName", chanName))
 				dms.mutex.RUnlock()
 				return result, err
 			}
+			sp1.AddEvent(fmt.Sprintf("channelName=%s", chanName))
+			sp1.End()
 			for cn, idList := range ids {
 				// idList should have length 1, just flat by iteration
 				for _, id := range idList {

@@ -58,8 +58,9 @@ func newDmInputNode(dmNodeConfig *nodeConfig, input <-chan *msgstream.MsgPack) *
 }
 
 func createNewInputFromDispatcher(initCtx context.Context, dispatcherClient msgdispatcher.Client, vchannel string, seekPos *msgpb.MsgPosition) (<-chan *msgstream.MsgPack, error) {
-	log := log.With(zap.Int64("nodeID", paramtable.GetNodeID()),
+	log := log.Ctx(initCtx).With(zap.Int64("nodeID", paramtable.GetNodeID()),
 		zap.String("vchannel", vchannel))
+	log.Info("create new input from msgDispatcher")
 	if seekPos != nil && len(seekPos.MsgID) != 0 {
 		input, err := dispatcherClient.Register(initCtx, vchannel, seekPos, common.SubscriptionPositionUnknown)
 		if err != nil {

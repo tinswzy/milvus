@@ -19,6 +19,7 @@ package pulsar
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"sync"
 	"time"
 
@@ -113,6 +114,10 @@ func (pc *pulsarClient) Subscribe(ctx context.Context, options mqwrapper.Consume
 		metrics.MsgStreamOpCounter.WithLabelValues(metrics.CreateConsumerLabel, metrics.FailLabel).Inc()
 		return nil, err
 	}
+	ctx, sp := otel.Tracer("PulsarClient").Start(ctx, "Subscribe")
+	defer sp.End()
+	sp.AddEvent(fmt.Sprintf("subscribing to topic=%s", fullTopicName))
+	sp.AddEvent(fmt.Sprintf("subscriptionName=%s", options.SubscriptionName))
 	consumer, err := pc.client.Subscribe(pulsar.ConsumerOptions{
 		Topic:                       fullTopicName,
 		SubscriptionName:            options.SubscriptionName,

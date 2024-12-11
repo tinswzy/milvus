@@ -668,6 +668,7 @@ func (g *getCollectionStatisticsTask) Execute(ctx context.Context) error {
 }
 
 func (g *getCollectionStatisticsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, g.result.Status)
 	return nil
 }
 
@@ -759,5 +760,6 @@ func (g *getPartitionStatisticsTask) Execute(ctx context.Context) error {
 }
 
 func (g *getPartitionStatisticsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, g.result.Status)
 	return nil
 }

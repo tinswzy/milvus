@@ -25,6 +25,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/metadata"
@@ -2147,4 +2148,16 @@ func GetFailedResponse(req any, err error) any {
 		}
 	}
 	return nil
+}
+
+func InjectTraceID(ctx context.Context, status *commonpb.Status) {
+	traceID := trace.SpanContextFromContext(ctx).TraceID()
+	if !traceID.IsValid() {
+		log.Ctx(ctx).Warn("traceID is not valid")
+		return
+	}
+	if status.ExtraInfo == nil {
+		status.ExtraInfo = make(map[string]string)
+	}
+	status.ExtraInfo["traceID"] = traceID.String()
 }

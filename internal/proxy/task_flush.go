@@ -130,5 +130,6 @@ func (t *flushTask) Execute(ctx context.Context) error {
 }
 
 func (t *flushTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result.Status)
 	return nil
 }

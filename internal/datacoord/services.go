@@ -142,7 +142,7 @@ func (s *Server) Flush(ctx context.Context, req *datapb.FlushRequest) (*datapb.F
 	if !streamingutil.IsStreamingServiceEnabled() {
 		var isUnimplemented bool
 		err = retry.Do(ctx, func() error {
-			nodeChannels := s.channelManager.GetNodeChannelsByCollectionID(req.GetCollectionID())
+			nodeChannels := s.channelManager.GetNodeChannelsByCollectionID(ctx, req.GetCollectionID())
 
 			for nodeID, channelNames := range nodeChannels {
 				err = s.cluster.FlushChannels(ctx, nodeID, ts, channelNames)
@@ -499,7 +499,7 @@ func (s *Server) SaveBinlogPaths(ctx context.Context, req *datapb.SaveBinlogPath
 	// for compatibility issue , if len(channelName) not exist, skip the check
 	// Also avoid to handle segment not found error if not the owner of shard
 	if len(channelName) != 0 {
-		if !s.channelManager.Match(nodeID, channelName) {
+		if !s.channelManager.Match(ctx, nodeID, channelName) {
 			err := merr.WrapErrChannelNotFound(channelName, fmt.Sprintf("for node %d", nodeID))
 			log.Warn("node is not matched with channel", zap.String("channel", channelName), zap.Error(err))
 			return merr.Status(err), nil
@@ -608,7 +608,7 @@ func (s *Server) DropVirtualChannel(ctx context.Context, req *datapb.DropVirtual
 
 	// validate
 	nodeID := req.GetBase().GetSourceID()
-	if !s.channelManager.Match(nodeID, channel) {
+	if !s.channelManager.Match(ctx, nodeID, channel) {
 		err := merr.WrapErrChannelNotFound(channel, fmt.Sprintf("for node %d", nodeID))
 		resp.Status = merr.Status(err)
 		log.Warn("node is not matched with channel", zap.String("channel", channel), zap.Int64("nodeID", nodeID))
@@ -643,7 +643,7 @@ func (s *Server) DropVirtualChannel(ctx context.Context, req *datapb.DropVirtual
 		// if streaming service is enabled, the channel manager will never manage the channel.
 		// so we don't need to release the channel anymore.
 		log.Info("DropVChannel plan to remove", zap.String("channel", channel))
-		err = s.channelManager.Release(nodeID, channel)
+		err = s.channelManager.Release(ctx, nodeID, channel)
 		if err != nil {
 			log.Warn("DropVChannel failed to ReleaseAndRemove", zap.String("channel", channel), zap.Error(err))
 		}
@@ -863,7 +863,7 @@ func (s *Server) GetRecoveryInfoV2(ctx context.Context, req *datapb.GetRecoveryI
 			Status: merr.Status(err),
 		}, nil
 	}
-	channels := s.channelManager.GetChannelsByCollectionID(collectionID)
+	channels := s.channelManager.GetChannelsByCollectionID(ctx, collectionID)
 	channelInfos := make([]*datapb.VchannelInfo, 0, len(channels))
 	flushedIDs := make(typeutil.UniqueSet)
 	for _, ch := range channels {
@@ -951,7 +951,7 @@ func (s *Server) GetChannelRecoveryInfo(ctx context.Context, req *datapb.GetChan
 		return resp, nil
 	}
 
-	channel := NewRWChannel(req.GetVchannel(), collectionID, nil, collection.Schema, 0) // TODO: remove RWChannel, just use vchannel + collectionID
+	channel := NewRWChannel(ctx, req.GetVchannel(), collectionID, nil, collection.Schema, 0) // TODO: remove RWChannel, just use vchannel + collectionID
 	channelInfo := s.handler.GetDataVChanPositions(channel, allPartitionID)
 	if channelInfo.SeekPosition == nil {
 		log.Warn("channel recovery start position is not found, may collection is on creating")
@@ -1242,7 +1242,7 @@ func (s *Server) WatchChannels(ctx context.Context, req *datapb.WatchChannelsReq
 		}, nil
 	}
 	for _, channelName := range req.GetChannelNames() {
-		ch := NewRWChannel(channelName, req.GetCollectionID(), req.GetStartPositions(), req.GetSchema(), req.GetCreateTimestamp())
+		ch := NewRWChannel(ctx, channelName, req.GetCollectionID(), req.GetStartPositions(), req.GetSchema(), req.GetCreateTimestamp())
 		err := s.channelManager.Watch(ctx, ch)
 		if err != nil {
 			log.Warn("fail to watch channelName", zap.Error(err))
@@ -1302,7 +1302,7 @@ func (s *Server) GetFlushState(ctx context.Context, req *datapb.GetFlushStateReq
 		}
 	}
 
-	channels := s.channelManager.GetChannelsByCollectionID(req.GetCollectionID())
+	channels := s.channelManager.GetChannelsByCollectionID(ctx, req.GetCollectionID())
 	if len(channels) == 0 { // For compatibility with old client
 		resp.Flushed = true
 
@@ -1405,7 +1405,7 @@ func (s *Server) UpdateChannelCheckpoint(ctx context.Context, req *datapb.Update
 	// For compatibility with old client
 	if req.GetVChannel() != "" && req.GetPosition() != nil {
 		channel := req.GetVChannel()
-		if !s.channelManager.Match(nodeID, channel) {
+		if !s.channelManager.Match(ctx, nodeID, channel) {
 			log.Warn("node is not matched with channel", zap.String("channel", channel), zap.Int64("nodeID", nodeID))
 			return merr.Status(merr.WrapErrChannelNotFound(channel, fmt.Sprintf("from node %d", nodeID))), nil
 		}
@@ -1419,7 +1419,7 @@ func (s *Server) UpdateChannelCheckpoint(ctx context.Context, req *datapb.Update
 
 	checkpoints := lo.Filter(req.GetChannelCheckpoints(), func(cp *msgpb.MsgPosition, _ int) bool {
 		channel := cp.GetChannelName()
-		matched := s.channelManager.Match(nodeID, channel)
+		matched := s.channelManager.Match(ctx, nodeID, channel)
 		if !matched {
 			log.Warn("node is not matched with channel", zap.String("channel", channel), zap.Int64("nodeID", nodeID))
 		}
@@ -1479,7 +1479,7 @@ func (s *Server) handleDataNodeTtMsg(ctx context.Context, ttMsg *msgpb.DataNodeT
 		log.RatedWarn(60.0, "time tick lag behind for more than 1 minutes")
 	}
 	// ignore report from a different node
-	if !s.channelManager.Match(sourceID, channel) {
+	if !s.channelManager.Match(ctx, sourceID, channel) {
 		log.Warn("node is not matched with channel")
 		return nil
 	}

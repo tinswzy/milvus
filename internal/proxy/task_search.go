@@ -751,9 +751,10 @@ func (t *searchTask) PostExecute(ctx context.Context) error {
 
 	metrics.ProxyReduceResultLatency.WithLabelValues(strconv.FormatInt(paramtable.GetNodeID(), 10), metrics.SearchLabel).Observe(float64(tr.RecordSpan().Milliseconds()))
 
-	log.Debug("Search post execute done",
+	log.Info("Search post execute done",
 		zap.Int64("collection", t.GetCollectionID()),
 		zap.Int64s("partitionIDs", t.GetPartitionIDs()))
+	InjectTraceID(ctx, t.result.Status)
 	return nil
 }
 

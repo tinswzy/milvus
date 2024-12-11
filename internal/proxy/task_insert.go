@@ -298,5 +298,6 @@ func (it *insertTask) Execute(ctx context.Context) error {
 }
 
 func (it *insertTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, it.result.Status)
 	return nil
 }

@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 	"sync"
 
 	"go.uber.org/zap"
@@ -151,7 +152,7 @@ func initMetaCache(initCtx context.Context, chunkManager storage.ChunkManager, i
 
 	loadSegmentStats := func(segType string, segments []*datapb.SegmentInfo) {
 		for _, item := range segments {
-			log.Info("recover segments from checkpoints",
+			log.Ctx(initCtx).Info("recover segments from checkpoints",
 				zap.String("vChannelName", item.GetInsertChannel()),
 				zap.Int64("segmentID", item.GetID()),
 				zap.Int64("numRows", item.GetNumOfRows()),
@@ -314,7 +315,7 @@ func getServiceWithChannel(initCtx context.Context, params *util.PipelineParams,
 		writebuffer.WithIDAllocator(params.Allocator),
 		writebuffer.WithTaskObserverCallback(wbTaskObserverCallback))
 	if err != nil {
-		log.Warn("failed to register channel buffer", zap.String("channel", channelName), zap.Error(err))
+		log.Ctx(initCtx).Warn("failed to register channel buffer", zap.String("channel", channelName), zap.Error(err))
 		return nil, err
 	}
 
@@ -332,31 +333,38 @@ func NewDataSyncService(initCtx context.Context, pipelineParams *util.PipelinePa
 		unflushedSegmentInfos []*datapb.SegmentInfo
 		flushedSegmentInfos   []*datapb.SegmentInfo
 	)
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(initCtx, "NewDataSyncService")
+	defer sp.End()
+	log.Ctx(ctx).Info("NewDataSyncService init")
 	if len(info.GetVchan().GetUnflushedSegmentIds()) > 0 {
-		unflushedSegmentInfos, err = pipelineParams.Broker.GetSegmentInfo(initCtx, info.GetVchan().GetUnflushedSegmentIds())
+		log.Ctx(ctx).Debug("get unflushed segmentInfos", zap.Int("count", len(info.GetVchan().GetUnflushedSegmentIds())))
+		unflushedSegmentInfos, err = pipelineParams.Broker.GetSegmentInfo(ctx, info.GetVchan().GetUnflushedSegmentIds())
 		if err != nil {
 			return nil, err
 		}
 	}
 	if len(info.GetVchan().GetFlushedSegmentIds()) > 0 {
-		flushedSegmentInfos, err = pipelineParams.Broker.GetSegmentInfo(initCtx, info.GetVchan().GetFlushedSegmentIds())
+		log.Ctx(ctx).Debug("get flushed segmentInfos", zap.Int("count", len(info.GetVchan().GetFlushedSegmentIds())))
+		flushedSegmentInfos, err = pipelineParams.Broker.GetSegmentInfo(ctx, info.GetVchan().GetFlushedSegmentIds())
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// init metaCache meta
-	if metaCache, err = getMetaCacheWithTickler(initCtx, pipelineParams, info, tickler, unflushedSegmentInfos, flushedSegmentInfos); err != nil {
+	if metaCache, err = getMetaCacheWithTickler(ctx, pipelineParams, info, tickler, unflushedSegmentInfos, flushedSegmentInfos); err != nil {
 		return nil, err
 	}
 
-	input, err := createNewInputFromDispatcher(initCtx, pipelineParams.DispClient, info.GetVchan().GetChannelName(), info.GetVchan().GetSeekPosition())
+	log.Ctx(ctx).Info("createNewInputFromDispatcher")
+	input, err := createNewInputFromDispatcher(ctx, pipelineParams.DispClient, info.GetVchan().GetChannelName(), info.GetVchan().GetSeekPosition())
 	if err != nil {
 		return nil, err
 	}
-	ds, err := getServiceWithChannel(initCtx, pipelineParams, info, metaCache, unflushedSegmentInfos, flushedSegmentInfos, input, nil, nil)
+	ds, err := getServiceWithChannel(ctx, pipelineParams, info, metaCache, unflushedSegmentInfos, flushedSegmentInfos, input, nil, nil)
 	if err != nil {
 		// deregister channel if failed to init flowgraph to avoid resource leak.
+		log.Ctx(initCtx).Warn("failed to init flowgraph, deregister channel", zap.String("channel", info.GetVchan().GetChannelName()), zap.Error(err))
 		pipelineParams.DispClient.Deregister(info.GetVchan().GetChannelName())
 		return nil, err
 	}

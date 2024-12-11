@@ -83,6 +83,7 @@ func (cdt *createDatabaseTask) Execute(ctx context.Context) error {
 }
 
 func (cdt *createDatabaseTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, cdt.result)
 	return nil
 }
 
@@ -155,6 +156,7 @@ func (ddt *dropDatabaseTask) Execute(ctx context.Context) error {
 }
 
 func (ddt *dropDatabaseTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, ddt.result)
 	return nil
 }
 
@@ -218,6 +220,7 @@ func (ldt *listDatabaseTask) Execute(ctx context.Context) error {
 }
 
 func (ldt *listDatabaseTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, ldt.result.Status)
 	return nil
 }
 
@@ -299,6 +302,7 @@ func (t *alterDatabaseTask) Execute(ctx context.Context) error {
 }
 
 func (t *alterDatabaseTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result)
 	return nil
 }
 
@@ -383,5 +387,6 @@ func (t *describeDatabaseTask) Execute(ctx context.Context) error {
 }
 
 func (t *describeDatabaseTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result.Status)
 	return nil
 }

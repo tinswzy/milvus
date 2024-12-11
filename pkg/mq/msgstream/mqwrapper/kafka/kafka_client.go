@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"strconv"
 	"sync"
 	"time"
@@ -229,6 +230,8 @@ func (kc *kafkaClient) Subscribe(ctx context.Context, options mqwrapper.Consumer
 	start := timerecord.NewTimeRecorder("create consumer")
 	metrics.MsgStreamOpCounter.WithLabelValues(metrics.CreateConsumerLabel, metrics.TotalLabel).Inc()
 
+	ctx, sp := otel.Tracer("KafkaClient").Start(ctx, "NewConsumer")
+	defer sp.End()
 	config := kc.newConsumerConfig(options.SubscriptionName, options.SubscriptionInitialPosition)
 	consumer, err := newKafkaConsumer(config, options.BufSize, options.Topic, options.SubscriptionName, options.SubscriptionInitialPosition)
 	if err != nil {

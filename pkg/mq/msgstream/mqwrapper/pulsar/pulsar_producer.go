@@ -18,6 +18,7 @@ package pulsar
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 
@@ -40,6 +41,8 @@ func (pp *pulsarProducer) Topic() string {
 }
 
 func (pp *pulsarProducer) Send(ctx context.Context, message *common.ProducerMessage) (common.MessageID, error) {
+	ctx, sp := otel.Tracer("pulsarProducer").Start(ctx, "PulsarProducer.Send")
+	defer sp.End()
 	start := timerecord.NewTimeRecorder("send msg to stream")
 	metrics.MsgStreamOpCounter.WithLabelValues(metrics.SendMsgLabel, metrics.TotalLabel).Inc()
 

@@ -20,11 +20,10 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 	"path"
 	"time"
-
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/kv"
 	"github.com/milvus-io/milvus/pkg/kv/predicates"
@@ -32,6 +31,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/metrics"
 	"github.com/milvus-io/milvus/pkg/util/merr"
 	"github.com/milvus-io/milvus/pkg/util/timerecord"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 const (
@@ -339,6 +339,9 @@ func (kv *etcdKV) LoadBytesWithRevision(ctx context.Context, key string) ([]stri
 func (kv *etcdKV) Save(ctx context.Context, key, value string) error {
 	start := time.Now()
 	key = path.Join(kv.rootPath, key)
+	ctx, sp := otel.Tracer("etcdKV").Start(ctx, "Save")
+	defer sp.End()
+	sp.AddEvent(fmt.Sprintf("key=%s", key))
 	ctx, cancel := context.WithTimeout(ctx, kv.requestTimeout)
 	defer cancel()
 	CheckValueSizeAndWarn(key, value)
@@ -381,6 +384,9 @@ func (kv *etcdKV) MultiSave(ctx context.Context, kvs map[string]string) error {
 		ops = append(ops, clientv3.OpPut(path.Join(kv.rootPath, key), value))
 	}
 
+	ctx, sp := otel.Tracer("etcdKV").Start(ctx, "MultiSave")
+	defer sp.End()
+	sp.AddEvent(fmt.Sprintf("key count=%d", len(keys)))
 	ctx, cancel := context.WithTimeout(ctx, kv.requestTimeout)
 	defer cancel()
 

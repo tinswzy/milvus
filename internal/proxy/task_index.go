@@ -553,6 +553,7 @@ func (cit *createIndexTask) Execute(ctx context.Context) error {
 }
 
 func (cit *createIndexTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, cit.result)
 	return nil
 }
 
@@ -689,6 +690,7 @@ func (t *alterIndexTask) Execute(ctx context.Context) error {
 }
 
 func (t *alterIndexTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result)
 	return nil
 }
 
@@ -807,6 +809,7 @@ func (dit *describeIndexTask) Execute(ctx context.Context) error {
 }
 
 func (dit *describeIndexTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, dit.result.Status)
 	return nil
 }
 
@@ -916,6 +919,7 @@ func (dit *getIndexStatisticsTask) Execute(ctx context.Context) error {
 }
 
 func (dit *getIndexStatisticsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, dit.result.Status)
 	return nil
 }
 
@@ -1029,6 +1033,7 @@ func (dit *dropIndexTask) Execute(ctx context.Context) error {
 }
 
 func (dit *dropIndexTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, dit.result)
 	return nil
 }
 
@@ -1118,6 +1123,7 @@ func (gibpt *getIndexBuildProgressTask) Execute(ctx context.Context) error {
 }
 
 func (gibpt *getIndexBuildProgressTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, gibpt.result.Status)
 	return nil
 }
 
@@ -1204,5 +1210,6 @@ func (gist *getIndexStateTask) Execute(ctx context.Context) error {
 }
 
 func (gist *getIndexStateTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, gist.result.Status)
 	return nil
 }

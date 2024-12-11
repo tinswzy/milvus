@@ -436,6 +436,7 @@ func (t *createCollectionTask) Execute(ctx context.Context) error {
 }
 
 func (t *createCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -505,6 +506,7 @@ func (t *dropCollectionTask) Execute(ctx context.Context) error {
 }
 
 func (t *dropCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -582,6 +584,7 @@ func (t *hasCollectionTask) Execute(ctx context.Context) error {
 }
 
 func (t *hasCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -728,6 +731,7 @@ func (t *describeCollectionTask) Execute(ctx context.Context) error {
 }
 
 func (t *describeCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -881,6 +885,7 @@ func (t *showCollectionsTask) Execute(ctx context.Context) error {
 }
 
 func (t *showCollectionsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -1090,6 +1095,7 @@ func (t *alterCollectionTask) Execute(ctx context.Context) error {
 }
 
 func (t *alterCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -1275,6 +1281,7 @@ func (t *createPartitionTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *createPartitionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -1383,6 +1390,7 @@ func (t *dropPartitionTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *dropPartitionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -1455,6 +1463,7 @@ func (t *hasPartitionTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *hasPartitionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -1603,6 +1612,7 @@ func (t *showPartitionsTask) Execute(ctx context.Context) error {
 }
 
 func (t *showPartitionsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -1757,6 +1767,7 @@ func (t *loadCollectionTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *loadCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	collID, err := globalMetaCache.GetCollectionID(ctx, t.GetDbName(), t.CollectionName)
 	log.Ctx(ctx).Debug("loadCollectionTask PostExecute",
 		zap.String("role", typeutil.ProxyRole),
@@ -1855,6 +1866,7 @@ func (t *releaseCollectionTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *releaseCollectionTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2018,6 +2030,7 @@ func (t *loadPartitionsTask) Execute(ctx context.Context) error {
 }
 
 func (t *loadPartitionsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2124,6 +2137,7 @@ func (t *releasePartitionsTask) Execute(ctx context.Context) (err error) {
 }
 
 func (t *releasePartitionsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2188,6 +2202,7 @@ func (t *CreateResourceGroupTask) Execute(ctx context.Context) error {
 }
 
 func (t *CreateResourceGroupTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2255,6 +2270,7 @@ func (t *UpdateResourceGroupsTask) Execute(ctx context.Context) error {
 }
 
 func (t *UpdateResourceGroupsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2319,6 +2335,7 @@ func (t *DropResourceGroupTask) Execute(ctx context.Context) error {
 }
 
 func (t *DropResourceGroupTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2444,6 +2461,7 @@ func (t *DescribeResourceGroupTask) Execute(ctx context.Context) error {
 }
 
 func (t *DescribeResourceGroupTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }
 
@@ -2508,6 +2526,7 @@ func (t *TransferNodeTask) Execute(ctx context.Context) error {
 }
 
 func (t *TransferNodeTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2581,6 +2600,7 @@ func (t *TransferReplicaTask) Execute(ctx context.Context) error {
 }
 
 func (t *TransferReplicaTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result)
 	return nil
 }
 
@@ -2645,5 +2665,6 @@ func (t *ListResourceGroupsTask) Execute(ctx context.Context) error {
 }
 
 func (t *ListResourceGroupsTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(t.ctx, t.result.Status)
 	return nil
 }

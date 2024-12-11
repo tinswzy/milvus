@@ -18,6 +18,7 @@ package rmq
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 	"strconv"
 
 	"github.com/cockroachdb/errors"
@@ -89,6 +90,8 @@ func (rc *rmqClient) Subscribe(ctx context.Context, options mqwrapper.ConsumerOp
 	}
 	receiveChannel := make(chan common.Message, options.BufSize)
 
+	ctx, sp := otel.Tracer("RmqClient").Start(ctx, "Subscribe")
+	defer sp.End()
 	cli, err := rc.client.Subscribe(client.ConsumerOptions{
 		Topic:                       options.Topic,
 		SubscriptionName:            options.SubscriptionName,

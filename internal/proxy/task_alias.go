@@ -111,6 +111,7 @@ func (t *CreateAliasTask) Execute(ctx context.Context) error {
 
 // PostExecute defines the post execution, do nothing for create alias
 func (t *CreateAliasTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result)
 	return nil
 }
 
@@ -184,6 +185,7 @@ func (t *DropAliasTask) Execute(ctx context.Context) error {
 }
 
 func (t *DropAliasTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result)
 	return nil
 }
 
@@ -260,6 +262,7 @@ func (t *AlterAliasTask) Execute(ctx context.Context) error {
 }
 
 func (t *AlterAliasTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, t.result)
 	return nil
 }
 
@@ -328,6 +331,7 @@ func (a *DescribeAliasTask) Execute(ctx context.Context) error {
 }
 
 func (a *DescribeAliasTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, a.result.Status)
 	return nil
 }
 
@@ -397,5 +401,6 @@ func (a *ListAliasesTask) Execute(ctx context.Context) error {
 }
 
 func (a *ListAliasesTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, a.result.Status)
 	return nil
 }

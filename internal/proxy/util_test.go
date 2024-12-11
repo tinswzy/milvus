@@ -27,6 +27,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -3077,5 +3078,22 @@ func TestValidateFunctionBasicParams(t *testing.T) {
 		}
 		err := checkFunctionBasicParams(function)
 		assert.Error(t, err)
+	})
+}
+
+func TestInjectTraceID(t *testing.T) {
+	status := &commonpb.Status{}
+	t.Run("traceID is not valid", func(t *testing.T) {
+		ctx := context.TODO()
+		InjectTraceID(ctx, status)
+		assert.Empty(t, status.ExtraInfo)
+	})
+	t.Run("traceID is valid", func(t *testing.T) {
+		ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(context.Background(), "test")
+		defer sp.End()
+		InjectTraceID(ctx, status)
+		assert.NotEmpty(t, status.ExtraInfo)
+		assert.Equal(t, 1, len(status.ExtraInfo))
+		assert.Equal(t, sp.SpanContext().TraceID().String(), status.ExtraInfo["traceID"])
 	})
 }

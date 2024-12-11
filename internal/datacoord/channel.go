@@ -17,6 +17,7 @@
 package datacoord
 
 import (
+	"context"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -43,7 +44,8 @@ type RWChannel interface {
 	UpdateWatchInfo(info *datapb.ChannelWatchInfo)
 }
 
-func NewRWChannel(name string,
+func NewRWChannel(ctx context.Context,
+	name string,
 	collectionID int64,
 	startPos []*commonpb.KeyDataPair,
 	schema *schemapb.CollectionSchema,
@@ -55,6 +57,7 @@ func NewRWChannel(name string,
 		StartPositions:  startPos,
 		Schema:          schema,
 		CreateTimestamp: createTs,
+		currentCtx:      ctx,
 	}
 }
 
@@ -131,11 +134,12 @@ type StateChannel struct {
 
 	currentState ChannelState
 	assignedNode int64
+	currentCtx   context.Context
 }
 
 var _ RWChannel = (*StateChannel)(nil)
 
-func NewStateChannel(ch RWChannel) *StateChannel {
+func NewStateChannel(ctx context.Context, ch RWChannel) *StateChannel {
 	c := &StateChannel{
 		Name:            ch.GetName(),
 		CollectionID:    ch.GetCollectionID(),
@@ -145,19 +149,21 @@ func NewStateChannel(ch RWChannel) *StateChannel {
 		Info:            ch.GetWatchInfo(),
 
 		assignedNode: bufferID,
+		currentCtx:   ctx,
 	}
 
 	c.setState(Standby)
 	return c
 }
 
-func NewStateChannelByWatchInfo(nodeID int64, info *datapb.ChannelWatchInfo) *StateChannel {
+func NewStateChannelByWatchInfo(ctx context.Context, nodeID int64, info *datapb.ChannelWatchInfo) *StateChannel {
 	c := &StateChannel{
 		Name:         info.GetVchan().GetChannelName(),
 		CollectionID: info.GetVchan().GetCollectionID(),
 		Schema:       info.GetSchema(),
 		Info:         info,
 		assignedNode: nodeID,
+		currentCtx:   ctx,
 	}
 
 	switch info.GetState() {
@@ -219,6 +225,7 @@ func (c *StateChannel) Clone() *StateChannel {
 
 		currentState: c.currentState,
 		assignedNode: c.assignedNode,
+		currentCtx:   c.currentCtx,
 	}
 }
 

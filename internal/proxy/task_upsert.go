@@ -561,5 +561,6 @@ func (it *upsertTask) Execute(ctx context.Context) (err error) {
 }
 
 func (it *upsertTask) PostExecute(ctx context.Context) error {
+	InjectTraceID(ctx, it.result.Status)
 	return nil
 }
