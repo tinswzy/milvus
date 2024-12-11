@@ -286,6 +286,8 @@ func (ms *mqMsgStream) isEnabledProduce() bool {
 }
 
 func (ms *mqMsgStream) Produce(ctx context.Context, msgPack *MsgPack) error {
+	ctx, sp := otel.Tracer("mqMsgStream").Start(ctx, "Produce")
+	defer sp.End()
 	if !ms.isEnabledProduce() {
 		log.Ctx(ms.ctx).Warn("can't produce the msg in the backup instance", zap.Stack("stack"))
 		return merr.ErrDenyProduceMsg
@@ -294,6 +296,7 @@ func (ms *mqMsgStream) Produce(ctx context.Context, msgPack *MsgPack) error {
 		log.Ctx(ms.ctx).Debug("Warning: Receive empty msgPack")
 		return nil
 	}
+	sp.AddEvent(fmt.Sprintf("%d msgs", len(msgPack.Msgs)))
 	if len(ms.producers) <= 0 {
 		return errors.New("nil producer in msg stream")
 	}
@@ -331,8 +334,8 @@ func (ms *mqMsgStream) Produce(ctx context.Context, msgPack *MsgPack) error {
 			}
 
 			for i := 0; i < len(v.Msgs); i++ {
-				spanCtx, sp := MsgSpanFromCtx(v.Msgs[i].TraceCtx(), v.Msgs[i])
-				defer sp.End()
+				spanCtx, _ := MsgSpanFromCtx(v.Msgs[i].TraceCtx(), v.Msgs[i])
+				//defer sp.End()
 
 				mb, err := v.Msgs[i].Marshal(v.Msgs[i])
 				if err != nil {
@@ -349,7 +352,8 @@ func (ms *mqMsgStream) Produce(ctx context.Context, msgPack *MsgPack) error {
 				}}
 				InjectCtx(spanCtx, msg.Properties)
 
-				if _, err := producer.Send(spanCtx, msg); err != nil {
+				if _, err := producer.Send(ctx, msg); err != nil {
+					//if _, err := producer.Send(spanCtx, msg); err != nil {
 					sp.RecordError(err)
 					return err
 				}
@@ -363,10 +367,13 @@ func (ms *mqMsgStream) Produce(ctx context.Context, msgPack *MsgPack) error {
 // BroadcastMark broadcast msg pack to all producers and returns corresponding msg id
 // the returned message id serves as marking
 func (ms *mqMsgStream) Broadcast(ctx context.Context, msgPack *MsgPack) (map[string][]MessageID, error) {
+	ctx1, span := otel.Tracer("mqMsgStream").Start(ctx, "Broadcast")
+	defer span.End()
 	ids := make(map[string][]MessageID)
 	if msgPack == nil || len(msgPack.Msgs) <= 0 {
 		return ids, errors.New("empty msgs")
 	}
+	span.AddEvent(fmt.Sprintf("%d msgs", len(msgPack.Msgs)))
 	// Only allow to create collection msg in backup instance
 	// However, there may be a problem of ts disorder here, but because the start position of the collection only uses offsets, not time, there is no problem for the time being
 	isCreateCollectionMsg := len(msgPack.Msgs) == 1 && msgPack.Msgs[0].Type() == commonpb.MsgType_CreateCollection
@@ -376,7 +383,7 @@ func (ms *mqMsgStream) Broadcast(ctx context.Context, msgPack *MsgPack) (map[str
 		return ids, merr.ErrDenyProduceMsg
 	}
 	for _, v := range msgPack.Msgs {
-		spanCtx, sp := MsgSpanFromCtx(v.TraceCtx(), v)
+		spanCtx, _ := MsgSpanFromCtx(v.TraceCtx(), v)
 
 		mb, err := v.Marshal(v)
 		if err != nil {
@@ -397,15 +404,15 @@ func (ms *mqMsgStream) Broadcast(ctx context.Context, msgPack *MsgPack) (map[str
 		ms.producerLock.RUnlock()
 
 		for channel, producer := range producers {
-			id, err := producer.Send(spanCtx, msg)
+			id, err := producer.Send(ctx1, msg)
 			if err != nil {
-				sp.RecordError(err)
-				sp.End()
+				//sp.RecordError(err)
+				//sp.End()
 				return ids, err
 			}
 			ids[channel] = append(ids[channel], id)
 		}
-		sp.End()
+		//sp.End()
 	}
 	return ids, nil
 }

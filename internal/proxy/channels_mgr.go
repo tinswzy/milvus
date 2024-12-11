@@ -19,6 +19,8 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/util/typeutil"
+	"go.opentelemetry.io/otel"
 	"strconv"
 	"sync"
 
@@ -173,6 +175,8 @@ func (mgr *singleTypeChannelsMgr) streamExistPrivate(collectionID UniqueID) bool
 }
 
 func createStream(ctx context.Context, factory msgstream.Factory, pchans []pChan, repack repackFuncType) (msgstream.MsgStream, error) {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "createStream")
+	defer sp.End()
 	var stream msgstream.MsgStream
 	var err error
 
@@ -254,6 +258,8 @@ func (mgr *singleTypeChannelsMgr) lockGetStream(collectionID UniqueID) (msgstrea
 // getOrCreateStream get message stream of specified collection.
 // If stream doesn't exist, call createMsgStream to create for it.
 func (mgr *singleTypeChannelsMgr) getOrCreateStream(ctx context.Context, collectionID UniqueID) (msgstream.MsgStream, error) {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "getOrCreateStream")
+	defer sp.End()
 	if stream, err := mgr.lockGetStream(collectionID); err == nil {
 		return stream, nil
 	}
