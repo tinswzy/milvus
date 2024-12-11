@@ -695,7 +695,7 @@ func (t *searchTask) PostExecute(ctx context.Context) error {
 			if len(internalResults) >= 1 {
 				metricType = internalResults[0].GetMetricType()
 			}
-			result, err := t.reduceResults(t.ctx, internalResults, subReq.GetNq(), subReq.GetTopk(), subReq.GetOffset(), t.queryInfos[index], true)
+			result, err := t.reduceResults(ctx, internalResults, subReq.GetNq(), subReq.GetTopk(), subReq.GetOffset(), t.queryInfos[index], true)
 			if err != nil {
 				return err
 			}
@@ -715,7 +715,7 @@ func (t *searchTask) PostExecute(ctx context.Context) error {
 			return err
 		}
 	} else {
-		t.result, err = t.reduceResults(t.ctx, toReduceResults, t.SearchRequest.GetNq(), t.SearchRequest.GetTopk(), t.SearchRequest.GetOffset(), t.queryInfos[0], false)
+		t.result, err = t.reduceResults(ctx, toReduceResults, t.SearchRequest.GetNq(), t.SearchRequest.GetTopk(), t.SearchRequest.GetOffset(), t.queryInfos[0], false)
 		if err != nil {
 			return err
 		}

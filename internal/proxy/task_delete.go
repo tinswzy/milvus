@@ -401,6 +401,7 @@ func (dr *deleteRunner) Run(ctx context.Context) error {
 			return err
 		}
 	}
+	InjectTraceID(ctx, dr.result.Status)
 	return nil
 }
 
