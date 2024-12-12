@@ -19,6 +19,7 @@ package querycoordv2
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"sync"
 
 	"github.com/cockroachdb/errors"
@@ -309,6 +310,8 @@ func (s *Server) LoadCollection(ctx context.Context, req *querypb.LoadCollection
 }
 
 func (s *Server) ReleaseCollection(ctx context.Context, req *querypb.ReleaseCollectionRequest) (*commonpb.Status, error) {
+	ctx, span := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "ReleaseCollection")
+	defer span.End()
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", req.GetCollectionID()),
 	)
@@ -334,9 +337,11 @@ func (s *Server) ReleaseCollection(ctx context.Context, req *querypb.ReleaseColl
 		s.proxyClientManager,
 	)
 	s.jobScheduler.Add(releaseJob)
+	span.AddEvent("enqueue release coll job")
 	err := releaseJob.Wait()
 	if err != nil {
 		msg := "failed to release collection"
+		span.AddEvent(msg)
 		log.Warn(msg, zap.Error(err))
 		metrics.QueryCoordReleaseCount.WithLabelValues(metrics.FailLabel).Inc()
 		return merr.Status(errors.Wrap(err, msg)), nil

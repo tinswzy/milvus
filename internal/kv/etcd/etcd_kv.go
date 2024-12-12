@@ -423,10 +423,13 @@ func (kv *etcdKV) MultiSaveBytes(ctx context.Context, kvs map[string][]byte) err
 
 // RemoveWithPrefix removes the keys with given prefix.
 func (kv *etcdKV) RemoveWithPrefix(ctx context.Context, prefix string) error {
+	ctx, sp := otel.Tracer("etcdKV").Start(ctx, "RemoveWithPrefix")
+	defer sp.End()
 	start := time.Now()
 	key := path.Join(kv.rootPath, prefix)
 	ctx, cancel := context.WithTimeout(ctx, kv.requestTimeout)
 	defer cancel()
+	sp.AddEvent(fmt.Sprintf("prefix=%s", key))
 
 	_, err := kv.removeEtcdMeta(ctx, key, clientv3.WithPrefix())
 	CheckElapseAndWarn(start, "Slow etcd operation remove with prefix", zap.String("prefix", prefix))
@@ -435,10 +438,13 @@ func (kv *etcdKV) RemoveWithPrefix(ctx context.Context, prefix string) error {
 
 // Remove removes the key.
 func (kv *etcdKV) Remove(ctx context.Context, key string) error {
+	ctx, sp := otel.Tracer("etcdKV").Start(ctx, "Remove")
+	defer sp.End()
 	start := time.Now()
 	key = path.Join(kv.rootPath, key)
 	ctx, cancel := context.WithTimeout(ctx, kv.requestTimeout)
 	defer cancel()
+	sp.AddEvent(fmt.Sprintf("key=%s", key))
 
 	_, err := kv.removeEtcdMeta(ctx, key)
 	CheckElapseAndWarn(start, "Slow etcd operation remove", zap.String("key", key))

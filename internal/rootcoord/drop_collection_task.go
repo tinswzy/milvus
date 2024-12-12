@@ -19,6 +19,7 @@ package rootcoord
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
@@ -52,6 +53,8 @@ func (t *dropCollectionTask) Prepare(ctx context.Context) error {
 }
 
 func (t *dropCollectionTask) Execute(ctx context.Context) error {
+	ctx, sp := otel.Tracer(typeutil.RootCoordRole).Start(ctx, "dropCollectionTask.Execute")
+	defer sp.End()
 	// use max ts to check if latest collection exists.
 	// we cannot handle case that
 	// dropping collection with `ts1` but a collection exists in catalog with newer ts which is bigger than `ts1`.
