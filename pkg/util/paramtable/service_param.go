@@ -551,7 +551,12 @@ func (p *MQConfig) Init(base *BaseTable) {
 Valid values: [default, pulsar, kafka, rocksmq, natsmq]`,
 		Export: true,
 	}
+	log.Info("init mq type params: before", zap.String("bt_mqtype", base.Get(p.Type.Key)))
+	base.Save(p.Type.Key, "woodpecker")
+	log.Info("init mq type params: after", zap.String("bt_mqtype", base.Get(p.Type.Key)))
 	p.Type.Init(base.mgr)
+	p.Type.DefaultValue = "woodpecker"
+	log.Info("init mq type params: final", zap.String("bt_mqtype", p.Type.GetValue()))
 
 	p.MaxTolerantLag = ParamItem{
 		Key:          "mq.dispatcher.maxTolerantLag",

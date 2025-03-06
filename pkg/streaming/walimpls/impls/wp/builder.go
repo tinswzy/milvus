@@ -2,15 +2,22 @@ package wp
 
 import (
 	"context"
+	"fmt"
+	"github.com/minio/minio-go/v7"
+	"github.com/zilliztech/woodpecker/common/config"
+	wpMinioHandler "github.com/zilliztech/woodpecker/common/minio"
+	"github.com/zilliztech/woodpecker/woodpecker"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 	"os"
 	"path"
 
-	"github.com/zilliztech/woodpecker/common/config"
-	"github.com/zilliztech/woodpecker/woodpecker"
-
+	"github.com/milvus-io/milvus/pkg/v2/log"
+	"github.com/milvus-io/milvus/pkg/v2/objectstorage"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls/registry"
+	"github.com/milvus-io/milvus/pkg/v2/util/etcd"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
@@ -39,10 +46,27 @@ func (b *builderImpl) Build() (walimpls.OpenerImpls, error) {
 	if err != nil {
 		return nil, err
 	}
-	wpClient, err := woodpecker.NewEmbedClientFromConfig(context.Background(), cfg)
+	//wpClient, err := woodpecker.NewEmbedClientFromConfig(context.Background(), cfg)
+	minioCli, err := b.getMinioClient(context.TODO())
 	if err != nil {
 		return nil, err
 	}
+	log.Ctx(context.Background()).Info("create minio client finish while building wp opener")
+	minioHandler, err := wpMinioHandler.NewMinioHandlerWithClient(context.Background(), minioCli)
+	if err != nil {
+		return nil, err
+	}
+	log.Ctx(context.Background()).Info("create minio handler finish while building wp opener")
+	etcdCli, err := b.getEtcdClient(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+	log.Ctx(context.Background()).Info("create etcd client finish while building wp opener")
+	wpClient, err := woodpecker.NewEmbedClient(context.Background(), cfg, etcdCli, minioHandler, true)
+	if err != nil {
+		return nil, err
+	}
+	log.Ctx(context.Background()).Info("build wp opener finish", zap.String("wpClientInstance", fmt.Sprintf("%p", wpClient)))
 	return &openerImpl{
 		c: wpClient,
 	}, nil
@@ -60,7 +84,8 @@ func (b *builderImpl) getWpConfig() (*config.Configuration, error) {
 		}
 		files = append(files, path.Join(cfgDir, yaml))
 	}
-	wpConfig, err := config.NewConfiguration(files...)
+	log.Ctx(context.Background()).Info("use config files to conn wp", zap.Strings("files", files))
+	wpConfig, err := config.NewConfiguration()
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +97,8 @@ func (b *builderImpl) getWpConfig() (*config.Configuration, error) {
 }
 
 func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *paramtable.WoodpeckerConfig) error {
+	// set the rootPath as the prefix for wp object storage
+	wpConfig.Woodpecker.Meta.Prefix = fmt.Sprintf("%s/wp", paramtable.Get().MinioCfg.RootPath.GetValue())
 	// logClient
 	wpConfig.Woodpecker.Client.Auditor.MaxInterval = cfg.AuditorMaxInterval.GetAsInt()
 	wpConfig.Woodpecker.Client.SegmentAppend.MaxRetries = cfg.AppendMaxRetries.GetAsInt()
@@ -87,5 +114,57 @@ func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *par
 	wpConfig.Woodpecker.Logstore.LogFileSyncPolicy.MaxFlushThreads = cfg.FlushMaxThreads.GetAsInt()
 	wpConfig.Woodpecker.Logstore.LogFileSyncPolicy.RetryInterval = cfg.RetryInterval.GetAsInt()
 
+	// set bucketName
+	wpConfig.Minio.BucketName = paramtable.Get().MinioCfg.BucketName.GetValue()
+
 	return nil
+}
+
+func (b *builderImpl) getMinioClient(ctx context.Context) (*minio.Client, error) {
+	c := objectstorage.NewDefaultConfig()
+	params := paramtable.Get()
+	opts := []objectstorage.Option{
+		objectstorage.RootPath(params.MinioCfg.RootPath.GetValue()),
+		objectstorage.Address(params.MinioCfg.Address.GetValue()),
+		objectstorage.AccessKeyID(params.MinioCfg.AccessKeyID.GetValue()),
+		objectstorage.SecretAccessKeyID(params.MinioCfg.SecretAccessKey.GetValue()),
+		objectstorage.UseSSL(params.MinioCfg.UseSSL.GetAsBool()),
+		objectstorage.SslCACert(params.MinioCfg.SslCACert.GetValue()),
+		objectstorage.BucketName(params.MinioCfg.BucketName.GetValue()),
+		objectstorage.UseIAM(params.MinioCfg.UseIAM.GetAsBool()),
+		objectstorage.CloudProvider(params.MinioCfg.CloudProvider.GetValue()),
+		objectstorage.IAMEndpoint(params.MinioCfg.IAMEndpoint.GetValue()),
+		objectstorage.UseVirtualHost(params.MinioCfg.UseVirtualHost.GetAsBool()),
+		objectstorage.Region(params.MinioCfg.Region.GetValue()),
+		objectstorage.RequestTimeout(params.MinioCfg.RequestTimeoutMs.GetAsInt64()),
+		objectstorage.CreateBucket(true),
+		objectstorage.GcpCredentialJSON(params.MinioCfg.GcpCredentialJSON.GetValue()),
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return objectstorage.NewMinioClient(ctx, c)
+}
+
+func (b *builderImpl) getEtcdClient(ctx context.Context) (*clientv3.Client, error) {
+	params := paramtable.Get()
+	etcdConfig := &params.EtcdCfg
+	log := log.Ctx(ctx)
+
+	etcdCli, err := etcd.CreateEtcdClient(
+		etcdConfig.UseEmbedEtcd.GetAsBool(),
+		etcdConfig.EtcdEnableAuth.GetAsBool(),
+		etcdConfig.EtcdAuthUserName.GetValue(),
+		etcdConfig.EtcdAuthPassword.GetValue(),
+		etcdConfig.EtcdUseSSL.GetAsBool(),
+		etcdConfig.Endpoints.GetAsStrings(),
+		etcdConfig.EtcdTLSCert.GetValue(),
+		etcdConfig.EtcdTLSKey.GetValue(),
+		etcdConfig.EtcdTLSCACert.GetValue(),
+		etcdConfig.EtcdTLSMinVersion.GetValue())
+	if err != nil {
+		log.Warn("Woodpecker walimpls connect to etcd failed", zap.Error(err))
+		return nil, err
+	}
+	return etcdCli, nil
 }

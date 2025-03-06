@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"go.uber.org/zap"
 
 	"google.golang.org/grpc"
 
@@ -68,6 +69,7 @@ func (s *Server) initBasicComponent(_ context.Context) {
 	var err error
 	s.walManager, err = walmanager.OpenManager()
 	if err != nil {
+		log.Error("open wal manager failed", zap.Error(err))
 		panic("open wal manager failed")
 	}
 	// Register the wal manager to the local registry.
