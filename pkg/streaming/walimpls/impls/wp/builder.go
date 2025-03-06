@@ -7,7 +7,9 @@ import (
 
 	"github.com/zilliztech/woodpecker/common/config"
 	"github.com/zilliztech/woodpecker/woodpecker"
+	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls/registry"
@@ -60,6 +62,7 @@ func (b *builderImpl) getWpConfig() (*config.Configuration, error) {
 		}
 		files = append(files, path.Join(cfgDir, yaml))
 	}
+	log.Ctx(context.Background()).Info("use config files to conn wp", zap.Strings("files", files))
 	wpConfig, err := config.NewConfiguration(files...)
 	if err != nil {
 		return nil, err

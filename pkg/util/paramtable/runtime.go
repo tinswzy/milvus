@@ -39,6 +39,8 @@ func Init() {
 		params.Init(baseTable)
 		hookBaseTable := NewBaseTableFromYamlOnly(hookYamlFile)
 		hookParams.init(hookBaseTable)
+		params.baseTable.Remove(params.MQCfg.Type.Key)
+		params.MQCfg.Type.DefaultValue = "woodpecker"
 	})
 }
 
@@ -47,6 +49,8 @@ func InitWithBaseTable(baseTable *BaseTable) {
 		params.Init(baseTable)
 		hookBaseTable := NewBaseTableFromYamlOnly(hookYamlFile)
 		hookParams.init(hookBaseTable)
+		params.baseTable.Remove(params.MQCfg.Type.Key)
+		params.MQCfg.Type.DefaultValue = "woodpecker"
 	})
 }
 
