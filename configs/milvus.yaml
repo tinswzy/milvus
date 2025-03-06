@@ -180,7 +180,7 @@ mq:
 woodpecker:
   # Configuration of Woodpecker metadata storage.
   meta:
-    type: etcd # Type of the configuration, currently only etcd is supported.
+    type: etcd # Type of the configuration, currently only support etcd.
     prefix: woodpecker # Root prefix of the key to where Woodpecker stores data in etcd.
   # Configuration of Woodpecker service.
   client:
