@@ -84,6 +84,8 @@ func (f *DefaultFactory) Init(params *paramtable.ComponentParam) {
 }
 
 func (f *DefaultFactory) initMQ(standalone bool, params *paramtable.ComponentParam) error {
+	// TODO test only
+	params.Save(params.MQCfg.Type.Key, "woodpecker")
 	mqType := mustSelectMQType(standalone, params.MQCfg.Type.GetValue(), mqEnable{params.RocksmqEnable(),
 		params.NatsmqEnable(), params.PulsarEnable(), params.KafkaEnable(), params.WoodpeckerEnable()})
 	metrics.RegisterMQType(mqType)

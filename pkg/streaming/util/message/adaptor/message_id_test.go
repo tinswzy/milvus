@@ -24,7 +24,7 @@ func TestIDConvension(t *testing.T) {
 	kafkaID := MustGetMessageIDFromMQWrapperID(MustGetMQWrapperIDFromMessage(msgkafka.NewKafkaID(1)))
 	assert.True(t, kafkaID.EQ(msgkafka.NewKafkaID(1)))
 
-	logMsgId := wp.EarliestLogMessageID
-	wpID := MustGetMessageIDFromMQWrapperID(MustGetMQWrapperIDFromMessage(msgwoodpecker.NewWpID(logMsgId)))
-	assert.True(t, wpID.EQ(msgwoodpecker.NewWpID(logMsgId)))
+	logMsgId := wp.EarliestLogMessageID()
+	wpID := MustGetMessageIDFromMQWrapperID(MustGetMQWrapperIDFromMessage(msgwoodpecker.NewWpID(&logMsgId)))
+	assert.True(t, wpID.EQ(msgwoodpecker.NewWpID(&logMsgId)))
 }
