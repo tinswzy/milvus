@@ -2,9 +2,11 @@ package wp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 
+	"github.com/minio/minio-go/v7"
 	"github.com/zilliztech/woodpecker/common/config"
 	wpMetrics "github.com/zilliztech/woodpecker/common/metrics"
 	wpStorageClient "github.com/zilliztech/woodpecker/common/objectstorage"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/metrics"
+	"github.com/milvus-io/milvus/pkg/v2/objectstorage"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/walimpls/registry"
@@ -55,7 +58,12 @@ func (b *builderImpl) Build() (walimpls.OpenerImpls, error) {
 		return nil, err
 	}
 	log.Ctx(context.Background()).Info("create etcd client finish while building wp opener")
-	wpClient, err := woodpecker.NewEmbedClient(context.Background(), cfg, etcdCli, storageClient, true)
+	var wpClient woodpecker.Client
+	if cfg.Woodpecker.Storage.IsStorageService() {
+		wpClient, err = woodpecker.NewClient(context.Background(), cfg, etcdCli, true)
+	} else {
+		wpClient, err = woodpecker.NewEmbedClient(context.Background(), cfg, etcdCli, storageClient, true)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +96,10 @@ func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *par
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxSize = cfg.SegmentRollingMaxSize.GetAsSize()
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxInterval = int(cfg.SegmentRollingMaxTime.GetAsDurationByParse().Seconds())
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxBlocks = cfg.SegmentRollingMaxBlocks.GetAsInt64()
+
+	// quorum configuration
+	b.setQuorumConfig(wpConfig, cfg)
+
 	// logStore
 	wpConfig.Woodpecker.Logstore.SegmentSyncPolicy.MaxInterval = int(cfg.SyncMaxInterval.GetAsDurationByParse().Milliseconds())
 	wpConfig.Woodpecker.Logstore.SegmentSyncPolicy.MaxIntervalForLocalStorage = int(cfg.SyncMaxIntervalForLocalStorage.GetAsDurationByParse().Milliseconds())
@@ -150,6 +162,65 @@ func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *par
 	wpConfig.Log.File.MaxBackups = paramtable.Get().LogCfg.MaxBackups.GetAsInt()
 
 	return nil
+}
+
+func (b *builderImpl) setQuorumConfig(wpConfig *config.Configuration, cfg *paramtable.WoodpeckerConfig) {
+	// Parse buffer pools from JSON string
+	bufferPoolsJSON := cfg.QuorumBufferPools.GetValue()
+	if bufferPoolsJSON != "" {
+		var bufferPools []config.QuorumBufferPool
+		if err := json.Unmarshal([]byte(bufferPoolsJSON), &bufferPools); err != nil {
+			log.Ctx(context.Background()).Warn("failed to parse quorum buffer pools JSON, using empty configuration",
+				zap.String("json", bufferPoolsJSON),
+				zap.Error(err))
+		} else {
+			wpConfig.Woodpecker.Client.Quorum.BufferPools = bufferPools
+		}
+	}
+
+	// Quorum selection strategy
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.AffinityMode = cfg.QuorumAffinityMode.GetValue()
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.Replicas = cfg.QuorumReplicas.GetAsInt()
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.Strategy = cfg.QuorumStrategy.GetValue()
+
+	// Parse custom placement from JSON string
+	customPlacementJSON := cfg.QuorumCustomPlacement.GetValue()
+	if customPlacementJSON != "" {
+		var customPlacements []config.CustomPlacement
+		if err := json.Unmarshal([]byte(customPlacementJSON), &customPlacements); err != nil {
+			log.Ctx(context.Background()).Warn("failed to parse custom placement JSON, using empty configuration",
+				zap.String("json", customPlacementJSON),
+				zap.Error(err))
+		} else {
+			wpConfig.Woodpecker.Client.Quorum.SelectStrategy.CustomPlacement = customPlacements
+		}
+	}
+}
+
+func (b *builderImpl) getMinioClient(ctx context.Context) (*minio.Client, error) {
+	c := objectstorage.NewDefaultConfig()
+	params := paramtable.Get()
+	opts := []objectstorage.Option{
+		objectstorage.RootPath(params.MinioCfg.RootPath.GetValue()),
+		objectstorage.Address(params.MinioCfg.Address.GetValue()),
+		objectstorage.AccessKeyID(params.MinioCfg.AccessKeyID.GetValue()),
+		objectstorage.SecretAccessKeyID(params.MinioCfg.SecretAccessKey.GetValue()),
+		objectstorage.UseSSL(params.MinioCfg.UseSSL.GetAsBool()),
+		objectstorage.SslCACert(params.MinioCfg.SslCACert.GetValue()),
+		objectstorage.BucketName(params.MinioCfg.BucketName.GetValue()),
+		objectstorage.UseIAM(params.MinioCfg.UseIAM.GetAsBool()),
+		objectstorage.CloudProvider(params.MinioCfg.CloudProvider.GetValue()),
+		objectstorage.IAMEndpoint(params.MinioCfg.IAMEndpoint.GetValue()),
+		objectstorage.UseVirtualHost(params.MinioCfg.UseVirtualHost.GetAsBool()),
+		objectstorage.Region(params.MinioCfg.Region.GetValue()),
+		objectstorage.RequestTimeout(params.MinioCfg.RequestTimeoutMs.GetAsInt64()),
+		objectstorage.CreateBucket(true),
+		objectstorage.GcpCredentialJSON(params.MinioCfg.GcpCredentialJSON.GetValue()),
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return objectstorage.NewMinioClient(ctx, c)
 }
 
 func (b *builderImpl) getEtcdClient(ctx context.Context) (*clientv3.Client, error) {
