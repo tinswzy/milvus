@@ -108,6 +108,34 @@ func TestServiceParam(t *testing.T) {
 		assert.Equal(t, wpCfg.SegmentRollingMaxBlocks.GetAsInt64(), int64(1000))
 		assert.Equal(t, wpCfg.AuditorMaxInterval.GetAsDurationByParse().Seconds(), float64(10))
 
+		// Test default quorum configuration values
+		// Buffer pools
+		assert.Equal(t, wpCfg.QuorumBufferPoolsRegion1.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumBufferPoolsRegion2.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumBufferPoolsRegion3.GetValue(), "")
+
+		// Selection strategy
+		assert.Equal(t, wpCfg.QuorumAffinityMode.GetValue(), "soft")
+		assert.Equal(t, wpCfg.QuorumReplicas.GetAsInt(), 3)
+		assert.Equal(t, wpCfg.QuorumStrategy.GetValue(), "random")
+
+		// Custom placement for all replicas (1-5)
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica1Region.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica1AZ.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica1RG.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica2Region.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica2AZ.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica2RG.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica3Region.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica3AZ.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica3RG.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica4Region.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica4AZ.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica4RG.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica5Region.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica5AZ.GetValue(), "")
+		assert.Equal(t, wpCfg.QuorumCustomPlacementReplica5RG.GetValue(), "")
+
 		assert.Equal(t, wpCfg.SyncMaxInterval.GetAsDurationByParse().Milliseconds(), int64(200))
 		assert.Equal(t, wpCfg.SyncMaxIntervalForLocalStorage.GetAsDurationByParse().Milliseconds(), int64(10))
 		assert.Equal(t, wpCfg.SyncMaxEntries.GetAsInt(), 10000)
@@ -124,6 +152,119 @@ func TestServiceParam(t *testing.T) {
 
 		assert.Equal(t, wpCfg.StorageType.GetValue(), "minio")
 		assert.Equal(t, wpCfg.RootPath.GetValue(), "/var/lib/milvus/woodpecker")
+	})
+
+	t.Run("test woodpeckerQuorumConfig", func(t *testing.T) {
+		wpCfg := &SParams.WoodpeckerCfg
+
+		// Test setting custom quorum configuration values
+		// Buffer pools for different regions
+		bt.Save("woodpecker.client.quorum.quorumBufferPools.region1", "node1:8080,node2:8080")
+		bt.Save("woodpecker.client.quorum.quorumBufferPools.region2", "node3:8080,node4:8080")
+		bt.Save("woodpecker.client.quorum.quorumBufferPools.region3", "node5:8080,node6:8080")
+
+		// Selection strategy
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.affinityMode", "hard")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.replicas", "5")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.strategy", "custom")
+
+		// Custom placement for replicas
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.region", "region1")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.az", "az-1")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.resourceGroup", "rg-1")
+
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.region", "region2")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.az", "az-2")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.resourceGroup", "rg-2")
+
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.region", "region3")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.az", "az-3")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.resourceGroup", "rg-3")
+
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.region", "region1")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.az", "az-4")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.resourceGroup", "rg-4")
+
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.region", "region2")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.az", "az-5")
+		bt.Save("woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.resourceGroup", "rg-5")
+
+		// Reinitialize configuration to pick up the new values
+		SParams.WoodpeckerCfg.QuorumBufferPoolsRegion1.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumBufferPoolsRegion2.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumBufferPoolsRegion3.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumAffinityMode.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumReplicas.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumStrategy.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica1Region.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica1AZ.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica1RG.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica2Region.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica2AZ.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica2RG.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica3Region.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica3AZ.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica3RG.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica4Region.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica4AZ.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica4RG.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica5Region.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica5AZ.Init(bt.mgr)
+		SParams.WoodpeckerCfg.QuorumCustomPlacementReplica5RG.Init(bt.mgr)
+
+		// Verify the updated configuration values
+		// Buffer pools
+		assert.Equal(t, "node1:8080,node2:8080", wpCfg.QuorumBufferPoolsRegion1.GetValue())
+		assert.Equal(t, "node3:8080,node4:8080", wpCfg.QuorumBufferPoolsRegion2.GetValue())
+		assert.Equal(t, "node5:8080,node6:8080", wpCfg.QuorumBufferPoolsRegion3.GetValue())
+
+		// Selection strategy
+		assert.Equal(t, "hard", wpCfg.QuorumAffinityMode.GetValue())
+		assert.Equal(t, 5, wpCfg.QuorumReplicas.GetAsInt())
+		assert.Equal(t, "custom", wpCfg.QuorumStrategy.GetValue())
+
+		// Custom placement for replicas
+		assert.Equal(t, "region1", wpCfg.QuorumCustomPlacementReplica1Region.GetValue())
+		assert.Equal(t, "az-1", wpCfg.QuorumCustomPlacementReplica1AZ.GetValue())
+		assert.Equal(t, "rg-1", wpCfg.QuorumCustomPlacementReplica1RG.GetValue())
+
+		assert.Equal(t, "region2", wpCfg.QuorumCustomPlacementReplica2Region.GetValue())
+		assert.Equal(t, "az-2", wpCfg.QuorumCustomPlacementReplica2AZ.GetValue())
+		assert.Equal(t, "rg-2", wpCfg.QuorumCustomPlacementReplica2RG.GetValue())
+
+		assert.Equal(t, "region3", wpCfg.QuorumCustomPlacementReplica3Region.GetValue())
+		assert.Equal(t, "az-3", wpCfg.QuorumCustomPlacementReplica3AZ.GetValue())
+		assert.Equal(t, "rg-3", wpCfg.QuorumCustomPlacementReplica3RG.GetValue())
+
+		assert.Equal(t, "region1", wpCfg.QuorumCustomPlacementReplica4Region.GetValue())
+		assert.Equal(t, "az-4", wpCfg.QuorumCustomPlacementReplica4AZ.GetValue())
+		assert.Equal(t, "rg-4", wpCfg.QuorumCustomPlacementReplica4RG.GetValue())
+
+		assert.Equal(t, "region2", wpCfg.QuorumCustomPlacementReplica5Region.GetValue())
+		assert.Equal(t, "az-5", wpCfg.QuorumCustomPlacementReplica5AZ.GetValue())
+		assert.Equal(t, "rg-5", wpCfg.QuorumCustomPlacementReplica5RG.GetValue())
+
+		// Log the configuration values for verification
+		t.Logf("Buffer pools - Region1: %s, Region2: %s, Region3: %s",
+			wpCfg.QuorumBufferPoolsRegion1.GetValue(),
+			wpCfg.QuorumBufferPoolsRegion2.GetValue(),
+			wpCfg.QuorumBufferPoolsRegion3.GetValue())
+		t.Logf("Selection strategy - Affinity: %s, Replicas: %d, Strategy: %s",
+			wpCfg.QuorumAffinityMode.GetValue(),
+			wpCfg.QuorumReplicas.GetAsInt(),
+			wpCfg.QuorumStrategy.GetValue())
+		t.Logf("Custom placement - Replica1: {region: %s, az: %s, rg: %s}",
+			wpCfg.QuorumCustomPlacementReplica1Region.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica1AZ.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica1RG.GetValue())
+		t.Logf("Custom placement - Replica4: {region: %s, az: %s, rg: %s}",
+			wpCfg.QuorumCustomPlacementReplica4Region.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica4AZ.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica4RG.GetValue())
+		t.Logf("Custom placement - Replica5: {region: %s, az: %s, rg: %s}",
+			wpCfg.QuorumCustomPlacementReplica5Region.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica5AZ.GetValue(),
+			wpCfg.QuorumCustomPlacementReplica5RG.GetValue())
 	})
 
 	t.Run("test pulsarConfig", func(t *testing.T) {

@@ -674,6 +674,34 @@ type WoodpeckerConfig struct {
 	SegmentRollingMaxBlocks ParamItem `refreshable:"true"`
 	AuditorMaxInterval      ParamItem `refreshable:"true"`
 
+	// quorum configuration
+	// Buffer pools for different regions
+	QuorumBufferPoolsRegion1 ParamItem `refreshable:"true"`
+	QuorumBufferPoolsRegion2 ParamItem `refreshable:"true"`
+	QuorumBufferPoolsRegion3 ParamItem `refreshable:"true"`
+
+	// Quorum selection strategy
+	QuorumAffinityMode ParamItem `refreshable:"true"`
+	QuorumReplicas     ParamItem `refreshable:"true"`
+	QuorumStrategy     ParamItem `refreshable:"true"`
+
+	// Custom placement for replicas
+	QuorumCustomPlacementReplica1Region ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica1AZ     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica1RG     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica2Region ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica2AZ     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica2RG     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica3Region ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica3AZ     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica3RG     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica4Region ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica4AZ     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica4RG     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica5Region ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica5AZ     ParamItem `refreshable:"true"`
+	QuorumCustomPlacementReplica5RG     ParamItem `refreshable:"true"`
+
 	// logstore
 	SyncMaxInterval                ParamItem `refreshable:"true"`
 	SyncMaxIntervalForLocalStorage ParamItem `refreshable:"true"`
@@ -766,6 +794,202 @@ func (p *WoodpeckerConfig) Init(base *BaseTable) {
 		Export:       true,
 	}
 	p.AuditorMaxInterval.Init(base.mgr)
+
+	// Buffer pools for different regions
+	p.QuorumBufferPoolsRegion1 = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumBufferPools.region1",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "List of seed addresses for region1 pool, comma-separated.",
+		Export:       true,
+	}
+	p.QuorumBufferPoolsRegion1.Init(base.mgr)
+
+	p.QuorumBufferPoolsRegion2 = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumBufferPools.region2",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "List of seed addresses for region2 pool, comma-separated.",
+		Export:       true,
+	}
+	p.QuorumBufferPoolsRegion2.Init(base.mgr)
+
+	p.QuorumBufferPoolsRegion3 = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumBufferPools.region3",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "List of seed addresses for region3 pool, comma-separated.",
+		Export:       true,
+	}
+	p.QuorumBufferPoolsRegion3.Init(base.mgr)
+
+	// Quorum selection strategy
+	p.QuorumAffinityMode = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.affinityMode",
+		Version:      "2.6.0",
+		DefaultValue: "soft",
+		Doc:          "Affinity mode for node selection rules. Valid values: [soft, hard]",
+		Export:       true,
+	}
+	p.QuorumAffinityMode.Init(base.mgr)
+
+	p.QuorumReplicas = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.replicas",
+		Version:      "2.6.0",
+		DefaultValue: "3",
+		Doc:          "Number of replicas in the quorum ensemble. Valid values: [3, 5]",
+		Export:       true,
+	}
+	p.QuorumReplicas.Init(base.mgr)
+
+	p.QuorumStrategy = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.strategy",
+		Version:      "2.6.0",
+		DefaultValue: "random",
+		Doc:          "Node selection strategy. Valid values: [random, single-az-single-rg, single-az-multi-rg, multi-az-single-rg, multi-az-multi-rg, cross-region, custom]",
+		Export:       true,
+	}
+	p.QuorumStrategy.Init(base.mgr)
+
+	// Custom placement for replica 1
+	p.QuorumCustomPlacementReplica1Region = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.region",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Region setting for replica 1 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica1Region.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica1AZ = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.az",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Availability zone setting for replica 1 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica1AZ.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica1RG = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica1.resourceGroup",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Resource group setting for replica 1 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica1RG.Init(base.mgr)
+
+	// Custom placement for replica 2
+	p.QuorumCustomPlacementReplica2Region = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.region",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Region setting for replica 2 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica2Region.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica2AZ = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.az",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Availability zone setting for replica 2 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica2AZ.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica2RG = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica2.resourceGroup",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Resource group setting for replica 2 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica2RG.Init(base.mgr)
+
+	// Custom placement for replica 3
+	p.QuorumCustomPlacementReplica3Region = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.region",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Region setting for replica 3 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica3Region.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica3AZ = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.az",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Availability zone setting for replica 3 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica3AZ.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica3RG = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica3.resourceGroup",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Resource group setting for replica 3 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica3RG.Init(base.mgr)
+
+	// Custom placement for replica 4
+	p.QuorumCustomPlacementReplica4Region = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.region",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Region setting for replica 4 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica4Region.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica4AZ = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.az",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Availability zone setting for replica 4 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica4AZ.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica4RG = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica4.resourceGroup",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Resource group setting for replica 4 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica4RG.Init(base.mgr)
+
+	// Custom placement for replica 5
+	p.QuorumCustomPlacementReplica5Region = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.region",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Region setting for replica 5 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica5Region.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica5AZ = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.az",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Availability zone setting for replica 5 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica5AZ.Init(base.mgr)
+
+	p.QuorumCustomPlacementReplica5RG = ParamItem{
+		Key:          "woodpecker.client.quorum.quorumSelectStrategy.customPlacement.replica5.resourceGroup",
+		Version:      "2.6.0",
+		DefaultValue: "",
+		Doc:          "Resource group setting for replica 5 in custom placement strategy.",
+		Export:       true,
+	}
+	p.QuorumCustomPlacementReplica5RG.Init(base.mgr)
 
 	p.SyncMaxInterval = ParamItem{
 		Key:          "woodpecker.logstore.segmentSyncPolicy.maxInterval",
@@ -888,7 +1112,7 @@ func (p *WoodpeckerConfig) Init(base *BaseTable) {
 		Key:          "woodpecker.storage.type",
 		Version:      "2.6.0",
 		DefaultValue: "minio",
-		Doc:          "The Type of the storage provider. Valid values: [minio, local]",
+		Doc:          "The Type of the storage provider. Valid values: [minio, local, service]",
 		Export:       true,
 	}
 	p.StorageType.Init(base.mgr)

@@ -3,6 +3,7 @@ package wp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/zilliztech/woodpecker/common/config"
@@ -64,7 +65,12 @@ func (b *builderImpl) Build() (walimpls.OpenerImpls, error) {
 		return nil, err
 	}
 	log.Ctx(context.Background()).Info("create etcd client finish while building wp opener")
-	wpClient, err := woodpecker.NewEmbedClient(context.Background(), cfg, etcdCli, minioHandler, true)
+	var wpClient woodpecker.Client
+	if cfg.Woodpecker.Storage.IsStorageService() {
+		wpClient, err = woodpecker.NewClient(context.Background(), cfg, etcdCli, true)
+	} else {
+		wpClient, err = woodpecker.NewEmbedClient(context.Background(), cfg, etcdCli, minioHandler, true)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +103,10 @@ func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *par
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxSize = cfg.SegmentRollingMaxSize.GetAsSize()
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxInterval = int(cfg.SegmentRollingMaxTime.GetAsDurationByParse().Seconds())
 	wpConfig.Woodpecker.Client.SegmentRollingPolicy.MaxBlocks = cfg.SegmentRollingMaxBlocks.GetAsInt64()
+
+	// quorum configuration
+	b.setQuorumConfig(wpConfig, cfg)
+
 	// logStore
 	wpConfig.Woodpecker.Logstore.SegmentSyncPolicy.MaxInterval = int(cfg.SyncMaxInterval.GetAsDurationByParse().Milliseconds())
 	wpConfig.Woodpecker.Logstore.SegmentSyncPolicy.MaxIntervalForLocalStorage = int(cfg.SyncMaxIntervalForLocalStorage.GetAsDurationByParse().Milliseconds())
@@ -129,6 +139,118 @@ func (b *builderImpl) setCustomWpConfig(wpConfig *config.Configuration, cfg *par
 	wpConfig.Log.File.MaxBackups = paramtable.Get().LogCfg.MaxBackups.GetAsInt()
 
 	return nil
+}
+
+func (b *builderImpl) setQuorumConfig(wpConfig *config.Configuration, cfg *paramtable.WoodpeckerConfig) {
+	// Buffer pools for different regions - array of QuorumBufferPool
+	var bufferPools []config.QuorumBufferPool
+
+	if region1Seeds := cfg.QuorumBufferPoolsRegion1.GetValue(); region1Seeds != "" {
+		bufferPools = append(bufferPools, config.QuorumBufferPool{
+			Name:  "region1",
+			Seeds: parseSeeds(region1Seeds),
+		})
+	}
+
+	if region2Seeds := cfg.QuorumBufferPoolsRegion2.GetValue(); region2Seeds != "" {
+		bufferPools = append(bufferPools, config.QuorumBufferPool{
+			Name:  "region2",
+			Seeds: parseSeeds(region2Seeds),
+		})
+	}
+
+	if region3Seeds := cfg.QuorumBufferPoolsRegion3.GetValue(); region3Seeds != "" {
+		bufferPools = append(bufferPools, config.QuorumBufferPool{
+			Name:  "region3",
+			Seeds: parseSeeds(region3Seeds),
+		})
+	}
+
+	wpConfig.Woodpecker.Client.Quorum.BufferPools = bufferPools
+
+	// Quorum selection strategy
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.AffinityMode = cfg.QuorumAffinityMode.GetValue()
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.Replicas = cfg.QuorumReplicas.GetAsInt()
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.Strategy = cfg.QuorumStrategy.GetValue()
+
+	// Custom placement for replicas - array of CustomPlacement
+	var customPlacements []config.CustomPlacement
+
+	// Set replica 1 configuration
+	if cfg.QuorumCustomPlacementReplica1Region.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica1AZ.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica1RG.GetValue() != "" {
+		customPlacements = append(customPlacements, config.CustomPlacement{
+			Name:          "replica1",
+			Region:        cfg.QuorumCustomPlacementReplica1Region.GetValue(),
+			Az:            cfg.QuorumCustomPlacementReplica1AZ.GetValue(),
+			ResourceGroup: cfg.QuorumCustomPlacementReplica1RG.GetValue(),
+		})
+	}
+
+	// Set replica 2 configuration
+	if cfg.QuorumCustomPlacementReplica2Region.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica2AZ.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica2RG.GetValue() != "" {
+		customPlacements = append(customPlacements, config.CustomPlacement{
+			Name:          "replica2",
+			Region:        cfg.QuorumCustomPlacementReplica2Region.GetValue(),
+			Az:            cfg.QuorumCustomPlacementReplica2AZ.GetValue(),
+			ResourceGroup: cfg.QuorumCustomPlacementReplica2RG.GetValue(),
+		})
+	}
+
+	// Set replica 3 configuration
+	if cfg.QuorumCustomPlacementReplica3Region.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica3AZ.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica3RG.GetValue() != "" {
+		customPlacements = append(customPlacements, config.CustomPlacement{
+			Name:          "replica3",
+			Region:        cfg.QuorumCustomPlacementReplica3Region.GetValue(),
+			Az:            cfg.QuorumCustomPlacementReplica3AZ.GetValue(),
+			ResourceGroup: cfg.QuorumCustomPlacementReplica3RG.GetValue(),
+		})
+	}
+
+	// Set replica 4 configuration
+	if cfg.QuorumCustomPlacementReplica4Region.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica4AZ.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica4RG.GetValue() != "" {
+		customPlacements = append(customPlacements, config.CustomPlacement{
+			Name:          "replica4",
+			Region:        cfg.QuorumCustomPlacementReplica4Region.GetValue(),
+			Az:            cfg.QuorumCustomPlacementReplica4AZ.GetValue(),
+			ResourceGroup: cfg.QuorumCustomPlacementReplica4RG.GetValue(),
+		})
+	}
+
+	// Set replica 5 configuration
+	if cfg.QuorumCustomPlacementReplica5Region.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica5AZ.GetValue() != "" ||
+		cfg.QuorumCustomPlacementReplica5RG.GetValue() != "" {
+		customPlacements = append(customPlacements, config.CustomPlacement{
+			Name:          "replica5",
+			Region:        cfg.QuorumCustomPlacementReplica5Region.GetValue(),
+			Az:            cfg.QuorumCustomPlacementReplica5AZ.GetValue(),
+			ResourceGroup: cfg.QuorumCustomPlacementReplica5RG.GetValue(),
+		})
+	}
+
+	wpConfig.Woodpecker.Client.Quorum.SelectStrategy.CustomPlacement = customPlacements
+}
+
+// parseSeeds parses comma-separated seed addresses into a slice
+func parseSeeds(seeds string) []string {
+	if seeds == "" {
+		return nil
+	}
+	var result []string
+	for _, seed := range strings.Split(seeds, ",") {
+		if trimmed := strings.TrimSpace(seed); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func (b *builderImpl) getMinioClient(ctx context.Context) (*minio.Client, error) {
