@@ -177,3 +177,27 @@ func NewAlterCollectionMessageBody(msg message.ImmutableMessage) (msgstream.TsMs
 		AlterCollectionMessage: alterCollMsg,
 	}, nil
 }
+
+type SwitchMessageBody struct {
+	*tsMsgImpl
+	SwitchMQMessage message.ImmutableImmutableSwitchMQMessage
+}
+
+func (p *SwitchMessageBody) ID() msgstream.UniqueID {
+	return 0
+}
+
+func NewSwitchMessageBody(msg message.ImmutableMessage) (msgstream.TsMsg, error) {
+	switchMsg := message.MustAsImmutableSwitchMQMessage(msg)
+	return &SwitchMessageBody{
+		tsMsgImpl: &tsMsgImpl{
+			BaseMsg: msgstream.BaseMsg{
+				BeginTimestamp: msg.TimeTick(),
+				EndTimestamp:   msg.TimeTick(),
+			},
+			ts:      msg.TimeTick(),
+			msgType: commonpb.MsgType_SwitchMQ,
+		},
+		SwitchMQMessage: switchMsg,
+	}, nil
+}

@@ -2,6 +2,7 @@ package flusherimpl
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -82,7 +83,7 @@ func (impl *flusherComponents) WhenCreateCollection(createCollectionMsg message.
 			MsgHandler:         newMsgHandler(resource.Resource().WriteBufferManager()),
 			SchemaManager:      newVersionedSchemaManager(createCollectionMsg.VChannel(), impl.rs),
 		},
-		msgChan,
+		msgChan, // TODO:COMMENT_TO_REMOVE 落盘msg pack 入口 chan，供flow graph nodes逐个处理落盘
 		&datapb.VchannelInfo{
 			CollectionID: createCollectionMsg.Header().GetCollectionId(),
 			ChannelName:  createCollectionMsg.VChannel(),
@@ -94,7 +95,7 @@ func (impl *flusherComponents) WhenCreateCollection(createCollectionMsg message.
 				Timestamp: createCollectionMsg.TimeTick(),
 			},
 		},
-		func(t syncmgr.Task, err error) {
+		func(t syncmgr.Task, err error) { // TODO:COMMENT_TO_REMOVE flow graph落盘 成功后的callback，
 			if err != nil || t == nil {
 				return
 			}
@@ -124,7 +125,8 @@ func (impl *flusherComponents) WhenDropCollection(vchannel string) {
 // HandleMessage handles the plain message.
 func (impl *flusherComponents) HandleMessage(ctx context.Context, msg message.ImmutableMessage) error {
 	vchannel := msg.VChannel()
-	if vchannel == "" {
+	//  TODO:COMMENT_TO_REMOVE tt发送的时候是没有channel名字的，而如果 广播操作的话，分pchannel广播和vch广播，pch广播的时候这里的channel名字是一定有的，要通过funcutil.IsPhysicalChannel判断
+	if vchannel == "" || funcutil.IsPhysicalChannel(vchannel) {
 		return impl.broadcastToAllDataSyncService(ctx, msg)
 	}
 	if _, ok := impl.dataServices[vchannel]; !ok {
@@ -257,7 +259,7 @@ func (impl *flusherComponents) buildDataSyncService(ctx context.Context, recover
 			SyncMgr:            resource.Resource().SyncManager(),
 			ChunkManager:       impl.chunkManager,
 			WriteBufferManager: resource.Resource().WriteBufferManager(),
-			CheckpointUpdater:  impl.cpUpdater,
+			CheckpointUpdater:  impl.cpUpdater, // TODO:COMMENT_TO_REMOVE 这里吧 flush checkpoint 更新的 updater传给 下面的 ttNodes, 让他最后写入完成后放入一个更新 flush cp的 task
 			Allocator:          idalloc.NewMAllocator(resource.Resource().IDAllocator()),
 			MsgHandler:         newMsgHandler(resource.Resource().WriteBufferManager()),
 			SchemaManager:      newVersionedSchemaManager(recoverInfo.GetInfo().GetChannelName(), impl.rs),

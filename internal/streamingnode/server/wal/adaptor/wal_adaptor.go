@@ -195,6 +195,15 @@ func (w *walAdaptorImpl) Append(ctx context.Context, msg message.MutableMessage)
 			return nil, status.NewChannelFenced(w.Channel().String())
 		}
 		return nil, err
+	} else if msg.MessageType() == message.MessageTypeSwitchMQ {
+		w.Logger().Warn("switch MQ msg detected, mark as fenced and unavailable, all append operations will be rejected",
+			zap.Bool("isSwitchMq", msg.MessageType() == message.MessageTypeSwitchMQ),
+			zap.Error(err))
+		w.isFenced.CompareAndSwap(false, true)
+		// append success and it is a switch mq message
+		w.forceCancelAfterGracefulTimeout()
+		w.Logger().Warn("mark as fenced and unavailable completed, all append operations will be rejected")
+		return nil, status.NewChannelFenced(w.Channel().String())
 	}
 	var extra *anypb.Any
 	if extraAppendResult.Extra != nil {

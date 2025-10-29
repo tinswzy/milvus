@@ -12,6 +12,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
 )
 
+// TODO:COMMENT_TO_REMOVE 旧版的WAL retention truncator
 // newSamplingTruncator creates a new sampling truncator.
 func newSamplingTruncator(
 	checkpoint *WALCheckpoint,

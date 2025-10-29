@@ -64,6 +64,7 @@ const (
 	MessageTypeCreateIndex          MessageType = MessageType(messagespb.MessageType_CreateIndex)
 	MessageTypeAlterIndex           MessageType = MessageType(messagespb.MessageType_AlterIndex)
 	MessageTypeDropIndex            MessageType = MessageType(messagespb.MessageType_DropIndex)
+	MessageTypeSwitchMQ             MessageType = MessageType(messagespb.MessageType_SwitchMQ)
 )
 
 // Export extra message type
@@ -164,6 +165,8 @@ type (
 	AlterIndexMessageBody             = messagespb.AlterIndexMessageBody
 	DropIndexMessageHeader            = messagespb.DropIndexMessageHeader
 	DropIndexMessageBody              = messagespb.DropIndexMessageBody
+	SwitchMQMessageHeader             = messagespb.SwitchMQMessageHeader
+	SwitchMQMessageBody               = messagespb.SwitchMQMessageBody
 )
 
 // Type aliases for TimeTickMessageV1
@@ -1826,6 +1829,16 @@ var MustAsBroadcastDropIndexMessageV2 = MustAsSpecializedBroadcastMessage[*DropI
 // NewDropIndexMessageBuilderV2 creates a new message builder for DropIndexMessageV2
 var NewDropIndexMessageBuilderV2 = newMutableMessageBuilder[*DropIndexMessageHeader, *DropIndexMessageBody]
 
+// MustAsImmutableSwitchMQMessage converts a BasicMessage to SwitchMQMessage, panics on error
+var MustAsImmutableSwitchMQMessage = MustAsSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// NewSwitchMQMessageBuilder creates a new message builder for SwitchMQMessage
+var NewSwitchMQMessageBuilder = newMutableMessageBuilder[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+type (
+	ImmutableImmutableSwitchMQMessage = SpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+)
+
 // messageTypeMap make the contriants that one header type can only be used for one message type.
 var messageTypeMap = map[reflect.Type]MessageType{
 	reflect.TypeOf(&messagespb.AlterAliasMessageHeader{}):           MessageTypeAlterAlias,
@@ -1869,6 +1882,7 @@ var messageTypeMap = map[reflect.Type]MessageType{
 	reflect.TypeOf(&messagespb.SchemaChangeMessageHeader{}):         MessageTypeSchemaChange,
 	reflect.TypeOf(&messagespb.TimeTickMessageHeader{}):             MessageTypeTimeTick,
 	reflect.TypeOf(&messagespb.TxnMessageHeader{}):                  MessageTypeTxn,
+	reflect.TypeOf(&messagespb.SwitchMQMessageHeader{}):             MessageTypeSwitchMQ,
 }
 
 // MessageTypeWithVersion identifies a message type and version

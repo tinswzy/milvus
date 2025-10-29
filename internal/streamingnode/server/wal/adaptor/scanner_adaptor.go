@@ -100,8 +100,8 @@ type scannerAdaptorImpl struct {
 	readOption    wal.ReadOption
 	filterFunc    func(message.ImmutableMessage) bool
 	reorderBuffer *utility.ReOrderByTimeTickBuffer // support time tick reorder.
-	pendingQueue  *utility.PendingQueue
-	txnBuffer     *utility.TxnBuffer // txn buffer for txn message.
+	pendingQueue  *utility.PendingQueue            // TODO:COMMENT_TO_REMOVE  完整的一个msg队列，如果是txt的话 会先在txnBuff组装好再放到这里
+	txnBuffer     *utility.TxnBuffer               // txn buffer for txn message.
 
 	cleanup   func()
 	clearOnce sync.Once
@@ -237,7 +237,7 @@ func (s *scannerAdaptorImpl) handleUpstream(msg message.ImmutableMessage) {
 	var isTailing bool
 	msg, isTailing = isTailingScanImmutableMessage(msg)
 	s.metrics.ObserveMessage(isTailing, msg.MessageType(), msg.EstimateSize())
-	if msg.MessageType() == message.MessageTypeTimeTick {
+	if msg.MessageType() == message.MessageTypeTimeTick { // TODO:COMMENT_TO_REMOVE 可以是窗口水位线tt msg，也可以是commit tt msg
 		// If the time tick message incoming,
 		// the reorder buffer can be consumed until latest confirmed timetick.
 		messages := s.reorderBuffer.PopUtilTimeTick(msg.TimeTick())
@@ -271,7 +271,7 @@ func (s *scannerAdaptorImpl) handleUpstream(msg message.ImmutableMessage) {
 		return
 	}
 	// otherwise add message into reorder buffer directly.
-	if err := s.reorderBuffer.Push(msg); err != nil {
+	if err := s.reorderBuffer.Push(msg); err != nil { // TODO:COMMENT_TO_REMOVE 非tt msg那么就直接push到 reorder buffer里面，只有到一定时间才能排序组装msg，再构建binlog数据data sync写入到磁盘。
 		if errors.Is(err, utility.ErrTimeTickVoilation) {
 			s.metrics.ObserveTimeTickViolation(isTailing, msg.MessageType())
 		}

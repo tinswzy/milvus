@@ -42,6 +42,7 @@ func (impl *shardInterceptor) initOpTable() {
 		message.MessageTypeSchemaChange:     impl.handleSchemaChange,
 		message.MessageTypeCreateSegment:    impl.handleCreateSegment,
 		message.MessageTypeFlush:            impl.handleFlushSegment,
+		//message.MessageTypeSwitchMQ:         impl.handleSwitchMQ,
 	}
 }
 
@@ -282,6 +283,29 @@ func (impl *shardInterceptor) handleFlushSegment(ctx context.Context, msg messag
 	impl.shardManager.FlushSegment(message.MustAsImmutableFlushMessageV2(msg.IntoImmutableMessage(msgID)))
 	return msgID, nil
 }
+
+//
+//// TODO shard interceptor 写入的时候，把segments id信息都带到 switchMQ msg里面，参考flush segment msg消息
+//func (impl *shardInterceptor) handleSwitchMQ(ctx context.Context, msg message.MutableMessage, appendOp interceptors.Append) (message.MessageID, error) {
+//	switchMQMsg := message.MustAsImmutableSwitchMQMessage(msg)
+//	header := switchMQMsg.Header()
+//	//
+//	segmentIDs, err := impl.shardManager.FlushAndFenceSegmentAllocUntil(header.GetCollectionId(), msg.TimeTick())
+//
+//	if err != nil {
+//		return nil, status.NewUnrecoverableError(err.Error())
+//	}
+//
+//	// Modify the extra response for manual flush message.
+//	utility.ModifyAppendResultExtra(ctx, func(old *message.ManualFlushExtraResponse) *message.ManualFlushExtraResponse {
+//		return &messagespb.ManualFlushExtraResponse{SegmentIds: segmentIDs}
+//	})
+//	header.SegmentIds = segmentIDs
+//	maunalFlushMsg.OverwriteHeader(header)
+//
+//	return appendOp(ctx, msg)
+//}
+// TODO remove ,还是 在 data sync service里面 sealed all比较合适。
 
 // Close closes the segment interceptor.
 func (impl *shardInterceptor) Close() {}

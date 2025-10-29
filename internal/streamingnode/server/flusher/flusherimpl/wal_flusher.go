@@ -81,12 +81,15 @@ func (impl *WALFlusherImpl) Execute(recoverSnapshot *recovery.RecoverySnapshot) 
 	impl.logger.Info("wal ready for flusher recovery")
 
 	var checkpoint message.MessageID
+	// TODO:COMMENT_TO_REMOVE 先构建flusher data sync service组件包装，flusherComponent 包含了 map<vchannelName,data sync service> 管理
 	impl.flusherComponents, checkpoint, err = impl.buildFlusherComponents(impl.notifier.Context(), l, recoverSnapshot)
 	if err != nil {
 		return errors.Wrap(err, "when build flusher components")
 	}
 	defer impl.flusherComponents.Close()
 
+	// TODO:COMMENT_TO_REMOVE 从pchannel consume checkpoint开始 读日志
+	// TODO:COMMENT_TO_REMOVE 这里可能需要我们修改下，如果switch mq之后，这个flusher 第二次应该从哪里启动、用什么创建client等? 不过不需要其实，因为open wal的时候会根据checkpoint来打开client。
 	scanner, err := impl.generateScanner(impl.notifier.Context(), impl.wal.Get(), checkpoint)
 	if err != nil {
 		return errors.Wrap(err, "when generate scanner")
@@ -107,6 +110,7 @@ func (impl *WALFlusherImpl) Execute(recoverSnapshot *recovery.RecoverySnapshot) 
 				return nil
 			}
 			impl.metrics.ObserveMetrics(msg.TimeTick())
+			// TODO:COMMENT_TO_REMOVE 每个日志分发到对应的data sync service
 			if err := impl.dispatch(msg); err != nil {
 				// The error is always context canceled.
 				return nil
@@ -140,6 +144,7 @@ func (impl *WALFlusherImpl) buildFlusherComponents(ctx context.Context, l wal.WA
 		return nil, nil, err
 	}
 	impl.logger.Info("fetch recovery info done", zap.Int("recoveryInfoNum", len(recoverInfos)))
+	// TODO:COMMENT_TO_REMOVE 在第三次进入的时候，应该检查这个checkpoint就是 那个switchMQ的msg 点位，那么就要切换为对应目标mq的 第0个 id
 	if len(vchannels) == 0 && checkpoint == nil {
 		impl.logger.Info("no vchannel to recover, use the snapshot checkpoint", zap.Stringer("checkpoint", snapshot.Checkpoint.MessageID))
 		checkpoint = snapshot.Checkpoint.MessageID
@@ -156,7 +161,7 @@ func (impl *WALFlusherImpl) buildFlusherComponents(ctx context.Context, l wal.WA
 	broker := broker.NewCoordBroker(mixc, paramtable.GetNodeID())
 	chunkManager := resource.Resource().ChunkManager()
 
-	cpUpdater := util.NewChannelCheckpointUpdaterWithCallback(broker, func(mp *msgpb.MsgPosition) {
+	cpUpdater := util.NewChannelCheckpointUpdaterWithCallback(broker, func(mp *msgpb.MsgPosition) { // TODO:COMMENT_TO_REMOVE flush vchannel 落盘后的 定时 放入 更新 vchan flushed checkpoint点位 task
 		messageID := adaptor.MustGetMessageIDFromMQWrapperIDBytes(mp.MsgID)
 		impl.RecoveryStorage.UpdateFlusherCheckpoint(mp.ChannelName, &recovery.WALCheckpoint{
 			MessageID: messageID,
@@ -169,7 +174,7 @@ func (impl *WALFlusherImpl) buildFlusherComponents(ctx context.Context, l wal.WA
 	fc := &flusherComponents{
 		wal:                        l,
 		broker:                     broker,
-		cpUpdater:                  cpUpdater,
+		cpUpdater:                  cpUpdater, // TODO:COMMENT_TO_REMOVE 放这个 cpUpdater进去，让后面data sync service创建的ttNode能够用到这个 cpUpdater
 		chunkManager:               chunkManager,
 		dataServices:               make(map[string]*dataSyncServiceWrapper),
 		logger:                     impl.logger,
@@ -219,6 +224,7 @@ func (impl *WALFlusherImpl) dispatch(msg message.ImmutableMessage) (err error) {
 		return nil
 	}
 
+	// TODO:COMMENT_TO_REMOVE 每个消息属于vchan级别，一个pchan这里会读到各种vchan的msg
 	// Do the data sync service management here.
 	switch msg.MessageType() {
 	case message.MessageTypeCreateCollection:
@@ -227,13 +233,16 @@ func (impl *WALFlusherImpl) dispatch(msg message.ImmutableMessage) (err error) {
 			impl.logger.DPanic("the message type is not CreateCollectionMessage", zap.Error(err))
 			return nil
 		}
+		// TODO:COMMENT_TO_REMOVE 主要是rs oberserve create create 到这个vchan，然后就是创建 vchan对应的data sync service组件
 		impl.flusherComponents.WhenCreateCollection(createCollectionMsg)
 	case message.MessageTypeDropCollection:
 		// defer to remove the data sync service from the components.
 		// TODO: Current drop collection message will be handled by the underlying data sync service.
+		// TODO:COMMENT_TO_REMOVE 主要是移除 vchan对应的 data sync service组件
 		defer func() {
 			impl.flusherComponents.WhenDropCollection(msg.VChannel())
 		}()
 	}
+	// TODO:COMMENT_TO_REMOVE 核心处理各种 DML/DDL
 	return impl.flusherComponents.HandleMessage(impl.notifier.Context(), msg)
 }

@@ -20,6 +20,8 @@ type (
 	Append = func(ctx context.Context, msg message.MutableMessage) (message.MessageID, error)
 )
 
+// TODO:COMMENT_TO_REMOVE 是插入数据的拦截器核心的内容，所有的数据逻辑都在 interceptor chain中发生。
+
 // InterceptorBuildParam is the parameter to build a interceptor.
 type InterceptorBuildParam struct {
 	ChannelInfo            types.PChannelInfo

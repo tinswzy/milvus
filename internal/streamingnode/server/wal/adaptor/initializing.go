@@ -22,6 +22,7 @@ import (
 
 // buildInterceptorParams builds the interceptor params for the walimpls.
 func buildInterceptorParams(ctx context.Context, underlyingWALImpls walimpls.WALImpls) (*interceptors.InterceptorBuildParam, error) {
+	// TODO:COMMENT_TO_REMOVE open WAL之前先发送一个 tt msg，表示最新的日志位置
 	msg, err := sendFirstTimeTick(ctx, underlyingWALImpls)
 	if err != nil {
 		return nil, err

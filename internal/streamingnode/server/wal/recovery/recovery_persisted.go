@@ -33,6 +33,7 @@ func (r *recoveryStorageImpl) recoverRecoveryInfoFromMeta(ctx context.Context, c
 		zap.String("state", recoveryStorageStatePersistRecovering),
 	))
 
+	// TODO:COMMENT_TO_REMOVE 从etcd得到 pchannel的 consume checkpoint
 	catalog := resource.Resource().StreamingNodeCatalog()
 	cpProto, err := catalog.GetConsumeCheckpoint(ctx, channelInfo.Name)
 	if err != nil {
@@ -51,6 +52,7 @@ func (r *recoveryStorageImpl) recoverRecoveryInfoFromMeta(ctx context.Context, c
 		zap.Int64("magic", r.checkpoint.Magic),
 	)
 
+	// TODO:COMMENT_TO_REMOVE 得到这个pChannel 对应的所有vchannels meta 和 vchannel的 flush checkpoint
 	fVChannel := conc.Go(func() (struct{}, error) {
 		var err error
 		vchannels, err := catalog.ListVChannel(ctx, channelInfo.Name)
@@ -64,6 +66,7 @@ func (r *recoveryStorageImpl) recoverRecoveryInfoFromMeta(ctx context.Context, c
 
 	fSegment := conc.Go(func() (struct{}, error) {
 		var err error
+		// TODO:COMMENT_TO_REMOVE 得到所有pchannel下面所有 vchannels的segment assignment情况
 		segmentAssign, err := catalog.ListSegmentAssignment(ctx, channelInfo.Name)
 		if err != nil {
 			return struct{}{}, errors.Wrap(err, "failed to get segment assignment from catalog")

@@ -17,9 +17,14 @@ import (
 	"github.com/milvus-io/milvus/internal/distributed/streaming"
 	management "github.com/milvus-io/milvus/internal/http"
 	"github.com/milvus-io/milvus/internal/json"
+	"github.com/milvus-io/milvus/internal/streamingcoord/server/balancer/balance"
+	"github.com/milvus-io/milvus/internal/streamingcoord/server/balancer/channel"
+	"github.com/milvus-io/milvus/internal/streamingcoord/server/broadcaster/broadcast"
+	"github.com/milvus-io/milvus/internal/util/streamingutil"
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
+	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/util/commonpbutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
@@ -48,6 +53,10 @@ func RegisterMgrRoute(s *mixCoordImpl) {
 			{management.StreamingNodeDistributionPath, s.GetStreamingNodeDistribution},
 			{management.StreamingTransferPath, s.TransferStreamingChannel},
 			{management.DataGCPath, s.HandleDatacoordGC}, // This route is unique, so it's included here.
+			// mq
+			{management.MQSwitchPath, s.HandleMQSwitch},
+			// config
+			{management.ConfigModifyPath, s.HandleConfigModify},
 		}
 
 		// Loop through the slice and register each route.
@@ -1119,4 +1128,143 @@ func (s *mixCoordImpl) TransferStreamingChannel(w http.ResponseWriter, req *http
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"msg": "OK"}`))
+}
+
+func (s *mixCoordImpl) HandleMQSwitch(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, `{"msg": "Method not allowed, use POST"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !streamingutil.IsStreamingServiceEnabled() {
+		http.Error(w, `{"msg": "Streaming service is not enabled"}`, http.StatusBadRequest)
+		return
+	}
+
+	logger := log.With(zap.String("Scope", "MQSwitch"))
+
+	// Define request body structure
+	var requestBody struct {
+		TargetMQType string            `json:"target_mq_type"` // e.g., "kafka", "pulsar", "rocksmq"
+		Config       map[string]string `json:"config,omitempty"`
+	}
+
+	// Parse JSON request body
+	if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
+		logger.Info("HandleMQSwitch failed to decode request body", zap.Error(err))
+		http.Error(w, `{"msg": "Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate target MQ type
+	if requestBody.TargetMQType == "" {
+		logger.Info("HandleMQSwitch missing target_mq_type")
+		http.Error(w, `{"msg": "target_mq_type is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Broadcast MQ Switch control message to all streaming nodes
+	if err := s.broadcastMQSwitchMessage(req.Context(), requestBody.TargetMQType, requestBody.Config); err != nil {
+		logger.Info("HandleMQSwitch failed to broadcast message", zap.Error(err))
+		http.Error(w, fmt.Sprintf(`{"msg": "failed to broadcast MQ switch message, %s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	logger.Info("HandleMQSwitch success", zap.String("targetMQType", requestBody.TargetMQType))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"msg": "OK"}`))
+}
+
+// broadcastMQSwitchMessage broadcasts an MQ switch control message to all streaming nodes.
+func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQType string, config map[string]string) error {
+	logger := log.With(zap.String("Scope", "MQSwitch"))
+
+	// Start broadcast with an exclusive cluster resource key to ensure only one MQ switch operation at a time
+	// MQ switch is a cluster-wide operation that requires exclusive access
+	broadcaster, err := broadcast.StartBroadcastWithResourceKeys(ctx, message.NewExclusiveClusterResourceKey())
+	if err != nil {
+		if errors.Is(err, broadcast.ErrNotPrimary) {
+			logger.Warn("broadcastMQSwitchMessage failed: current cluster is not primary", zap.Error(err))
+			return errors.Wrap(err, "current cluster is not primary, cannot perform MQ switch")
+		}
+		logger.Warn("broadcastMQSwitchMessage failed to start broadcast", zap.Error(err))
+		return errors.Wrap(err, "failed to start broadcast")
+	}
+	defer broadcaster.Close()
+
+	// Get balancer to access channel assignments
+	balancer, err := balance.GetWithContext(ctx)
+	if err != nil {
+		logger.Warn("broadcastMQSwitchMessage failed to get balancer", zap.Error(err))
+		return errors.Wrap(err, "failed to get balancer")
+	}
+
+	// Get all pchannels from the latest channel assignment
+	latestAssignment, err := balancer.GetLatestChannelAssignment()
+	if err != nil {
+		logger.Warn("broadcastMQSwitchMessage failed to get latest channel assignment", zap.Error(err))
+		return errors.Wrap(err, "failed to get channel assignment")
+	}
+
+	// Extract all pchannels
+	// For MQ switch, we need to broadcast to all pchannels directly
+	// because each pchannel needs to switch its underlying MQ implementation
+	pchannels := lo.MapToSlice(latestAssignment.PChannelView.Channels, func(_ channel.ChannelID, channel *channel.PChannelMeta) string {
+		return channel.Name()
+	})
+
+	// If no pchannels found, return early
+	if len(pchannels) == 0 {
+		logger.Info("broadcastMQSwitchMessage no active pchannels found, skipping broadcast")
+		return nil
+	}
+
+	logger.Info("broadcastMQSwitchMessage preparing to broadcast",
+		zap.String("targetMQType", targetMQType),
+		zap.Int("pchannelCount", len(pchannels)),
+		zap.Strings("pchannels", pchannels))
+
+	// Build message properties with MQ switch information
+	properties := make(map[string]string)
+	properties["_mq_switch_operation"] = "true"
+	properties["_mq_switch_target_type"] = targetMQType
+
+	// Add custom config properties
+	for k, v := range config {
+		properties["_mq_switch_config_"+k] = v
+	}
+
+	// Create MQ Switch broadcast message
+	// Broadcast to all pchannels directly, no need to handle control channel specially
+	broadcastMsg, err := message.NewSwitchMQMessageBuilder().
+		WithHeader(&message.SwitchMQMessageHeader{
+			TargetMq: targetMQType,
+			Config:   properties,
+		}).
+		WithBody(&message.SwitchMQMessageBody{}).
+		WithBroadcast(pchannels).
+		BuildBroadcast()
+	if err != nil {
+		logger.Warn("broadcastMQSwitchMessage failed to build broadcast message", zap.Error(err))
+		return errors.Wrap(err, "failed to build broadcast message")
+	}
+
+	// Broadcast the message to all vchannels
+	result, err := broadcaster.Broadcast(ctx, broadcastMsg)
+	if err != nil {
+		logger.Warn("broadcastMQSwitchMessage failed to broadcast message", zap.Error(err))
+		return errors.Wrap(err, "failed to broadcast message")
+	}
+
+	logger.Info("broadcastMQSwitchMessage broadcast successful",
+		zap.String("targetMQType", targetMQType),
+		zap.Int("pchannelCount", len(result.AppendResults)),
+		zap.Uint64("broadcastID", result.BroadcastID))
+
+	return nil
+}
+
+func (s *mixCoordImpl) HandleConfigModify(writer http.ResponseWriter, request *http.Request) {
+	// TODO 修改etcd config，不管immutable与否，都可以运维修改。当修改 mqType的时候特殊配置的时候，转发走 上面handleMQSwitch操作
 }

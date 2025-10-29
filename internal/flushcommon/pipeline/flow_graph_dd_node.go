@@ -284,6 +284,17 @@ func (ddn *ddNode) Operate(in []Msg) []Msg {
 			)
 			logger.Info("receive schema change message")
 			ddn.msgHandler.HandleSchemaChange(ddn.ctx, schemaMsg.SchemaChangeMessage)
+		case commonpb.MsgType_SwitchMQ:
+			switchMQMsg := msg.(*adaptor.SwitchMessageBody)
+			log.Info("receive switch mq message",
+				zap.String("pchannel", switchMQMsg.SwitchMQMessage.VChannel()), // TODO:COMMENT_TO_REMOVE pchan广播消息中，msg里面放的是pchannel 名字
+				zap.String("vchannel", ddn.vChannelName),
+				zap.String("targetMq", switchMQMsg.SwitchMQMessage.Header().TargetMq),
+				zap.Uint64("timetick", switchMQMsg.SwitchMQMessage.TimeTick()),
+			)
+			// TODO:COMMENT_TO_REMOVE 根据msg type 为 switch mq，触发一下 flow graph 的flush，让他调用 flush checkpoint。然后 外面openWAL的地方 轮训cpUpdater 所有点位都更新到目标点位。
+			// TODO 参考manual flush操作
+			ddn.msgHandler.HandleSwitchMQ(switchMQMsg.SwitchMQMessage, ddn.vChannelName)
 		}
 	}
 

@@ -70,6 +70,11 @@ require (
 	k8s.io/apimachinery v0.32.3
 )
 
+replace (
+    // TODO remove when milvus-proto update first
+	github.com/milvus-io/milvus-proto/go-api/v2 => ../cmake_build/thirdparty/milvus-proto/go-api
+)
+
 require (
 	cel.dev/expr v0.19.1 // indirect
 	cloud.google.com/go v0.118.3 // indirect

@@ -37,10 +37,14 @@ func RecoverRecoveryStorage(
 	lastTimeTickMessage message.ImmutableMessage,
 ) (RecoveryStorage, *RecoverySnapshot, error) {
 	rs := newRecoveryStorage(recoveryStreamBuilder.Channel())
+	// TODO 这里面要 obersrver switch mq的 消息，然后 flush 所有segment。确保segment 不跨 mq 【第二次进入的时候，从ccatalog里面拿到了 持久化的SN端的 checkpoint 是我们 switch mq的点位】
+	// TODO:COMMENT_TO_REMOVE 先从meta恢复之前的recovery snapshot信息
 	if err := rs.recoverRecoveryInfoFromMeta(ctx, recoveryStreamBuilder.Channel(), lastTimeTickMessage); err != nil {
 		rs.Logger().Warn("recovery storage failed", zap.Error(err))
 		return nil, nil, err
 	}
+	// TODO 这里应该会知道 最后一个 switch MQ的消息标志。【第一次应该在这里发现 switch MQ msg 】
+	// TODO:COMMENT_TO_REMOVE 然后从上一次pchan consume checkpoint开始读取 WAL 继续恢复， 恢复到刚刚写入的lastTimeTickMessage。【打开之前，先send一个tt就是 last tt msg】
 	// recover the state from wal and start the background task to persist the state.
 	snapshot, err := rs.recoverFromStream(ctx, recoveryStreamBuilder, lastTimeTickMessage)
 	if err != nil {
@@ -91,14 +95,20 @@ type recoveryStorageImpl struct {
 	channel                types.PChannelInfo
 	segments               map[int64]*segmentRecoveryInfo
 	vchannels              map[string]*vchannelRecoveryInfo
-	checkpoint             *WALCheckpoint
-	dirtyCounter           int // records the message count since last persist snapshot.
+	checkpoint             *WALCheckpoint // TODO:COMMENT_TO_REMOVE consume pchannel checkpoint
+	dirtyCounter           int            // records the message count since last persist snapshot.
 	// used to trigger the recovery persist operation.
 	persistNotifier        chan struct{}
 	gracefulClosed         bool
 	truncator              *samplingTruncator
 	metrics                *recoveryMetrics
 	pendingPersistSnapshot *RecoverySnapshot
+	// used to mark switch MQ msg found
+	foundSwitchMQMsg bool
+	targetMQ         string
+	switchConfig     map[string]string
+	// TODO:COMMENT_TO_REMOVE flushed checkpoint, get from truncator, used switchMQ only
+	flusherCheckpoint *WALCheckpoint
 }
 
 // Metrics gets the metrics of the wal.
@@ -145,11 +155,13 @@ func (r *recoveryStorageImpl) GetSchema(ctx context.Context, vchannel string, ti
 // ObserveMessage is called when a new message is observed.
 func (r *recoveryStorageImpl) ObserveMessage(ctx context.Context, msg message.ImmutableMessage) error {
 	if h := msg.BroadcastHeader(); h != nil {
+		// TODO:COMMENT_TO_REMOVE 如果是broadcast msg，则幂等ack一遍
 		if err := streaming.WAL().Broadcast().Ack(ctx, msg); err != nil {
 			r.Logger().Warn("failed to ack broadcast message", zap.Error(err))
 			return err
 		}
 	}
+	// TODO:COMMENT_TO_REMOVE control vchan不会影响 seg、vchan meta，只是影响 执行时ddl/dcl顺序
 	if funcutil.IsControlChannel(msg.VChannel()) && msg.MessageType() != message.MessageTypeAlterReplicateConfig {
 		// message on control channel except AlterReplicateConfig message is just used to determine the DDL/DCL order,
 		// will not affect the recovery storage, so skip it.
@@ -158,6 +170,7 @@ func (r *recoveryStorageImpl) ObserveMessage(ctx context.Context, msg message.Im
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// TODO:COMMENT_TO_REMOVE 其他DML/DDL逐个 msg 观察处理
 	r.observeMessage(msg)
 	return nil
 }
@@ -191,6 +204,9 @@ func (r *recoveryStorageImpl) consumeDirtySnapshot() *RecoverySnapshot {
 	segments := make(map[int64]*streamingpb.SegmentAssignmentMeta)
 	vchannels := make(map[string]*streamingpb.VChannelMeta)
 	for _, segment := range r.segments {
+		// TODO:COMMENT_TO_REMOVE 是不是dirty的，是不是flushed 的。
+		// TODO 【dirty表示 内存有更新，和etcd上已经不一致，需要持久化到etcd上。】
+		// TODO 【sholdbeRemove表示 这个segment已经不在 growing状态了，移除内存中的数据结构】
 		dirtySnapshot, shouldBeRemoved := segment.ConsumeDirtyAndGetSnapshot()
 		if shouldBeRemoved {
 			delete(r.segments, segment.meta.SegmentId)
@@ -200,6 +216,7 @@ func (r *recoveryStorageImpl) consumeDirtySnapshot() *RecoverySnapshot {
 		}
 	}
 	for _, vchannel := range r.vchannels {
+		// TODO:COMMENT_TO_REMOVE 是不是drop的vchan
 		dirtySnapshot, shouldBeRemoved := vchannel.ConsumeDirtyAndGetSnapshot()
 		if shouldBeRemoved {
 			delete(r.vchannels, vchannel.meta.Vchannel)
@@ -229,8 +246,10 @@ func (r *recoveryStorageImpl) observeMessage(msg message.ImmutableMessage) {
 		}
 		return
 	}
+	// TODO:COMMENT_TO_REMOVE 先处理msg 观察逻辑
 	r.handleMessage(msg)
 
+	// TODO:COMMENT_TO_REMOVE 再更新checkpoint的内存数据结构，从而整体形成 snapshot {seg/vc meta+checkpoint}
 	r.updateCheckpoint(msg)
 	r.metrics.ObServeInMemMetrics(r.checkpoint.TimeTick)
 
@@ -267,6 +286,7 @@ func (r *recoveryStorageImpl) updateCheckpoint(msg message.ImmutableMessage) {
 			}
 		}
 	}
+	// TODO:COMMENT_TO_REMOVE 最后一个msg ID 和 tt
 	r.checkpoint.MessageID = msg.LastConfirmedMessageID()
 	r.checkpoint.TimeTick = msg.TimeTick()
 
@@ -336,13 +356,66 @@ func (r *recoveryStorageImpl) handleMessage(msg message.ImmutableMessage) {
 		r.handleSchemaChange(immutableMsg)
 	case message.MessageTypeTimeTick:
 		// nothing, the time tick message make no recovery operation.
+	case message.MessageTypeSwitchMQ:
+		immutableMsg := message.MustAsImmutableSwitchMQMessage(msg)
+		r.handleSwitchMQType(immutableMsg)
 	}
+}
+
+// handleSwitchMQType handles the switch MQ message.
+// When switching MQ, we need to flush all growing segments to ensure that segment data does not span across different MQ implementations.
+func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableImmutableSwitchMQMessage) {
+	header := msg.Header()
+
+	// Collect all growing segments that need to be flushed
+	growingSegmentIDs := make([]int64, 0)
+	segmentRows := make([]uint64, 0)
+	segmentBinarySizes := make([]uint64, 0)
+
+	// Iterate through all segments and flush growing ones
+	for segmentID, segment := range r.segments {
+		if segment.IsGrowing() {
+			// Flush the growing segment to ensure data doesn't span across MQ switch
+			segment.ObserveFlush(msg.TimeTick())
+
+			growingSegmentIDs = append(growingSegmentIDs, segmentID)
+			segmentRows = append(segmentRows, segment.Rows())
+			segmentBinarySizes = append(segmentBinarySizes, segment.BinarySize())
+		}
+	}
+
+	if len(growingSegmentIDs) > 0 {
+		r.Logger().Info("flush all growing segments for MQ switch",
+			log.FieldMessage(msg),
+			zap.String("targetMQ", header.TargetMq),
+			zap.Int("flushedSegmentCount", len(growingSegmentIDs)),
+			zap.Int64s("segmentIDs", growingSegmentIDs),
+			zap.Uint64s("segmentRows", segmentRows),
+			zap.Uint64s("segmentBinarySizes", segmentBinarySizes))
+	} else {
+		r.Logger().Info("no growing segments to flush for MQ switch",
+			log.FieldMessage(msg),
+			zap.String("targetMQ", header.TargetMq))
+	}
+
+	// Mark that we have found a switch MQ message and record the switch information
+	// This will be persisted in the snapshot to ensure recovery after restart
+	r.foundSwitchMQMsg = true
+	r.targetMQ = header.TargetMq
+	r.switchConfig = header.Config
+
+	r.Logger().Info("switch MQ information recorded",
+		zap.Bool("foundSwitchMQMsg", r.foundSwitchMQMsg),
+		zap.String("targetMQ", r.targetMQ),
+		zap.Any("switchConfig", r.switchConfig))
 }
 
 // handleInsert handles the insert message.
 func (r *recoveryStorageImpl) handleInsert(msg message.ImmutableInsertMessageV1) {
+	// TODO:COMMENT_TO_REMOVE 一个insert msg可能写入到多个 partition中的多个segments中
 	for _, partition := range msg.Header().GetPartitions() {
 		if segment, ok := r.segments[partition.SegmentAssignment.SegmentId]; ok && segment.IsGrowing() {
+			// TODO:COMMENT_TO_REMOVE 更新每个seg的 统计信息
 			segment.ObserveInsert(msg.TimeTick(), partition)
 			if r.Logger().Level().Enabled(zap.DebugLevel) {
 				r.Logger().Debug("insert entity", log.FieldMessage(msg), zap.Uint64("segmentRows", segment.Rows()), zap.Uint64("segmentBinary", segment.BinarySize()))
@@ -363,6 +436,7 @@ func (r *recoveryStorageImpl) handleDelete(msg message.ImmutableDeleteMessageV1)
 
 // handleCreateSegment handles the create segment message.
 func (r *recoveryStorageImpl) handleCreateSegment(msg message.ImmutableCreateSegmentMessageV2) {
+	// TODO:COMMENT_TO_REMOVE 创建segment meta、stats 内存记录
 	segment := newSegmentRecoveryInfoFromCreateSegmentMessage(msg)
 	r.segments[segment.meta.SegmentId] = segment
 	r.Logger().Info("create segment", log.FieldMessage(msg))
@@ -372,6 +446,7 @@ func (r *recoveryStorageImpl) handleCreateSegment(msg message.ImmutableCreateSeg
 func (r *recoveryStorageImpl) handleFlush(msg message.ImmutableFlushMessageV2) {
 	header := msg.Header()
 	if segment, ok := r.segments[header.SegmentId]; ok {
+		// TODO:COMMENT_TO_REMOVE 记录这个segment state的flushed状态和 flush checkpoint tt
 		segment.ObserveFlush(msg.TimeTick())
 		r.Logger().Info("flush segment", log.FieldMessage(msg), zap.Uint64("rows", segment.Rows()), zap.Uint64("binarySize", segment.BinarySize()))
 	}
@@ -407,6 +482,7 @@ func (r *recoveryStorageImpl) flushSegments(msg message.ImmutableMessage, sealSe
 
 // handleCreateCollection handles the create collection message.
 func (r *recoveryStorageImpl) handleCreateCollection(msg message.ImmutableCreateCollectionMessageV1) {
+	// TODO:COMMENT_TO_REMOVE 幂等创建collection的vchan, create collection的时候，分配的每个vchannel 都会收到一个 create collection信息的。所以每个msg里面其实只有一个vchannel。
 	if _, ok := r.vchannels[msg.VChannel()]; ok {
 		return
 	}
@@ -416,11 +492,13 @@ func (r *recoveryStorageImpl) handleCreateCollection(msg message.ImmutableCreate
 
 // handleDropCollection handles the drop collection message.
 func (r *recoveryStorageImpl) handleDropCollection(msg message.ImmutableDropCollectionMessageV1) {
+	// TODO:COMMENT_TO_REMOVE 和create collection msg同理
 	if vchannelInfo, ok := r.vchannels[msg.VChannel()]; !ok || vchannelInfo.meta.State == streamingpb.VChannelState_VCHANNEL_STATE_DROPPED {
 		return
 	}
 	r.vchannels[msg.VChannel()].ObserveDropCollection(msg)
 	// flush all existing segments.
+	// TODO:COMMENT_TO_REMOVE 找到当前collection所有segment，都mark flushed一下
 	r.flushAllSegmentOfCollection(msg, msg.Header().CollectionId)
 	r.Logger().Info("drop collection", log.FieldMessage(msg))
 }
@@ -441,6 +519,7 @@ func (r *recoveryStorageImpl) flushAllSegmentOfCollection(msg message.ImmutableM
 
 // handleCreatePartition handles the create partition message.
 func (r *recoveryStorageImpl) handleCreatePartition(msg message.ImmutableCreatePartitionMessageV1) {
+	// TODO:COMMENT_TO_REMOVE partition和collection一个意思，创建partition的时候会向 collection所有的vchannel发送一个 partition create msg信息
 	if vchannelInfo, ok := r.vchannels[msg.VChannel()]; !ok || vchannelInfo.meta.State == streamingpb.VChannelState_VCHANNEL_STATE_DROPPED {
 		return
 	}
@@ -489,6 +568,7 @@ func (r *recoveryStorageImpl) handleImport(_ message.ImmutableImportMessageV1) {
 
 // handleSchemaChange handles the schema change message.
 func (r *recoveryStorageImpl) handleSchemaChange(msg message.ImmutableSchemaChangeMessageV2) {
+	// TODO:COMMENT_TO_REMOVE schema变化的时候，也会向所有vchan发生信息。这就先要把现有segment 都flush
 	// when schema change happens, we need to flush all segments in the collection.
 	segments := make(map[int64]struct{}, len(msg.Header().FlushedSegmentIds))
 	for _, segmentID := range msg.Header().FlushedSegmentIds {
@@ -496,6 +576,7 @@ func (r *recoveryStorageImpl) handleSchemaChange(msg message.ImmutableSchemaChan
 	}
 	r.flushSegments(msg, segments)
 
+	// TODO:COMMENT_TO_REMOVE 然后重新更新内存中vchannel 对应关联的 collection schema history历史。这个schemas
 	// persist the schema change into recovery info.
 	if vchannelInfo, ok := r.vchannels[msg.VChannel()]; ok {
 		vchannelInfo.ObserveSchemaChange(msg)
@@ -513,9 +594,9 @@ func (r *recoveryStorageImpl) detectInconsistency(msg message.ImmutableMessage, 
 	r.metrics.ObserveInconsitentEvent()
 }
 
-// getFlusherCheckpoint returns flusher checkpoint concurrent-safe
+// GetFlusherCheckpoint returns flusher checkpoint concurrent-safe
 // NOTE: shall not be called with r.mu.Lock()!
-func (r *recoveryStorageImpl) getFlusherCheckpoint() *WALCheckpoint {
+func (r *recoveryStorageImpl) GetFlusherCheckpoint() *WALCheckpoint {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

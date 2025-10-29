@@ -24,9 +24,11 @@ type (
 func (u *walAccesserImpl) AppendMessages(ctx context.Context, msgs ...message.MutableMessage) AppendResponses {
 	assertValidMessage(msgs...)
 
+	// TODO:COMMENT_TO_REMOVE 把消息列表按照 vchannel分组组织
 	// dispatch the messages into different vchannel.
 	dispatchedMessages, indexes := u.dispatchMessages(msgs...)
 
+	// TODO:COMMENT_TO_REMOVE 如果只有一个组，直接发送并等待
 	// If only one vchannel, append it directly without other goroutine.
 	if len(dispatchedMessages) == 1 {
 		return u.appendToVChannel(ctx, msgs[0].VChannel(), msgs...)
@@ -38,6 +40,7 @@ func (u *walAccesserImpl) AppendMessages(ctx context.Context, msgs ...message.Mu
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(dispatchedMessages))
+	// TODO:COMMENT_TO_REMOVE 如果有多个组，那么异步线程并发处理 每个vchan的数据写入
 	for vchannel, msgs := range dispatchedMessages {
 		vchannel := vchannel
 		msgs := msgs
@@ -90,7 +93,7 @@ func (u *walAccesserImpl) appendToVChannel(ctx context.Context, vchannel string,
 	// at most time, there's only one message here.
 	// TODO: only the partition-key with high partition will generate many message in one time on the same pchannel,
 	// we should optimize the message-format, make it into one; but not the goroutine count.
-	if len(msgs) == 1 {
+	if len(msgs) == 1 { // TODO:COMMENT_TO_REMOVE 如果只有一条消息，直接同步插入并等待即可
 		resp := types.NewAppendResponseN(1)
 		appendResult, err := u.appendToWAL(ctx, msgs[0])
 		resp.FillResponseAtIdx(AppendResponse{
@@ -100,7 +103,7 @@ func (u *walAccesserImpl) appendToVChannel(ctx context.Context, vchannel string,
 		return resp
 	}
 
-	for {
+	for { // TODO:COMMENT_TO_REMOVE 如果有很多消息，那么就组织一个txn事务插入到vchan上，vchan级别 要么成功要么失败
 		if ctx.Err() != nil {
 			resp := types.NewAppendResponseN(len(msgs))
 			resp.FillAllError(ctx.Err())
@@ -124,7 +127,7 @@ func (u *walAccesserImpl) appendWithTxn(ctx context.Context, vchannel string, ms
 
 	// Otherwise, we start a transaction to append the messages.
 	// The transaction will be committed when all messages are appended.
-	txn, err := u.Txn(ctx, TxnOption{
+	txn, err := u.Txn(ctx, TxnOption{ // TODO:COMMENT_TO_REMOVE 先发送一个 begin txn msg到wal
 		VChannel: vchannel,
 	})
 	if err != nil {
@@ -137,7 +140,7 @@ func (u *walAccesserImpl) appendWithTxn(ctx context.Context, vchannel string, ms
 	wg.Add(len(msgs))
 
 	mu := sync.Mutex{}
-	for i, msg := range msgs {
+	for i, msg := range msgs { // TODO:COMMENT_TO_REMOVE 再并发发送 data msg到 wal
 		i := i
 		msg := msg
 		u.appendExecutionPool.Submit(func() (struct{}, error) {
@@ -163,7 +166,7 @@ func (u *walAccesserImpl) appendWithTxn(ctx context.Context, vchannel string, ms
 	}
 
 	// commit the transaction and fill the response.
-	appendResult, err := txn.Commit(ctx)
+	appendResult, err := txn.Commit(ctx) // TODO:COMMENT_TO_REMOVE 如果都完成了，那么再同步写入一个commit msg
 	resp.FillAllResponse(AppendResponse{
 		AppendResult: appendResult,
 		Error:        err,

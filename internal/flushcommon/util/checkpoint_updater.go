@@ -132,6 +132,7 @@ func (ccu *ChannelCheckpointUpdater) updateCheckpoints(tasks []*channelCPUpdateT
 			wg.Add(1)
 			go func(tasks []*channelCPUpdateTask) {
 				defer wg.Done()
+				// TODO:COMMENT_TO_REMOVE 调用datacoord 持久化 vchan flush cp 到 datacoord-meta/vchannel-cp/<vchannel name> 写入 msgID & tt
 				timeout := paramtable.Get().DataNodeCfg.UpdateChannelCheckpointRPCTimeout.GetAsDuration(time.Second)
 				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				defer cancel()

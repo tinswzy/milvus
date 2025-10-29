@@ -53,6 +53,7 @@ func (rs *recoveryStorageImpl) backgroundTask() {
 		case <-rs.persistNotifier:
 		case <-ticker.C:
 		}
+		// TODO:COMMENT_TO_REMOVE 默认每10s 持久化一下 recovery的snapshot
 		if err := rs.persistDirtySnapshot(rs.backgroundTaskNotifier.Context(), zap.DebugLevel); err != nil {
 			return
 		}
@@ -76,6 +77,7 @@ func (rs *recoveryStorageImpl) persistDritySnapshotWhenClosing() error {
 // persistDirtySnapshot persists the dirty snapshot to the catalog.
 func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zapcore.Level) (err error) {
 	if rs.pendingPersistSnapshot == nil {
+		// TODO:COMMENT_TO_REMOVE 获取最新snapshot内存结构，这个snapshot待 持久化到etcd
 		// if there's no dirty snapshot, generate a new one.
 		rs.pendingPersistSnapshot = rs.consumeDirtySnapshot()
 	}
@@ -101,6 +103,7 @@ func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zap
 		rs.metrics.ObserveIsOnPersisting(false)
 	}()
 
+	// TODO:COMMENT_TO_REMOVE 先把drop的vchan都 丢弃先
 	if err := rs.dropAllVirtualChannel(ctx, snapshot.VChannels); err != nil {
 		logger.Warn("failed to drop all virtual channels", zap.Error(err))
 		return err
@@ -112,6 +115,7 @@ func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zap
 			err := rs.retryOperationWithBackoff(ctx,
 				logger.With(zap.String("op", "persistSegmentAssignments"), zap.Int64s("segmentIds", lo.Keys(snapshot.SegmentAssignments))),
 				func(ctx context.Context) error {
+					// TODO:COMMENT_TO_REMOVE 保存streaming-meta/wal/<pchannel>/segment-assign/<segmentId> 存放segment assignments
 					return resource.Resource().StreamingNodeCatalog().SaveSegmentAssignments(ctx, rs.channel.Name, snapshot.SegmentAssignments)
 				})
 			return struct{}{}, err
@@ -123,6 +127,7 @@ func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zap
 			err := rs.retryOperationWithBackoff(ctx,
 				logger.With(zap.String("op", "persistVChannels"), zap.Strings("vchannels", lo.Keys(snapshot.VChannels))),
 				func(ctx context.Context) error {
+					// TODO:COMMENT_TO_REMOVE 保存streaming-meta/wal/<pchannel>/vchannels/<vchannel name>  存放vchan meta
 					return resource.Resource().StreamingNodeCatalog().SaveVChannels(ctx, rs.channel.Name, snapshot.VChannels)
 				})
 			return struct{}{}, err
@@ -135,6 +140,7 @@ func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zap
 
 	// checkpoint updates should always be persisted after other updates success.
 	if err := rs.retryOperationWithBackoff(ctx, rs.Logger().With(zap.String("op", "persistCheckpoint")), func(ctx context.Context) error {
+		// TODO:COMMENT_TO_REMOVE 保存streaming-meta/wal/<pchannel>/consume-checkpoint
 		return resource.Resource().StreamingNodeCatalog().
 			SaveConsumeCheckpoint(ctx, rs.channel.Name, snapshot.Checkpoint.IntoProto())
 	}); err != nil {
@@ -143,12 +149,14 @@ func (rs *recoveryStorageImpl) persistDirtySnapshot(ctx context.Context, lvl zap
 
 	// sample the checkpoint for truncator to make wal truncation.
 	rs.metrics.ObServePersistedMetrics(snapshot.Checkpoint.TimeTick)
+	// TODO:COMMENT_TO_REMOVE 同时获取minimum flushed checkpoint 来进行调用truncated pchan
 	rs.sampleTruncateCheckpoint(snapshot.Checkpoint)
 	return
 }
 
+// TODO:COMMENT_TO_REMOVE 主要是读取flusher的checkpoint，其实就是 所有vchannel的minimum flush checkpoint
 func (rs *recoveryStorageImpl) sampleTruncateCheckpoint(checkpoint *WALCheckpoint) {
-	flusherCP := rs.getFlusherCheckpoint()
+	flusherCP := rs.GetFlusherCheckpoint()
 	if flusherCP == nil {
 		return
 	}

@@ -84,6 +84,7 @@ func (b *TxnBuffer) handleBeginTxn(msg message.ImmutableMessage) {
 		)
 		b.rollbackTxn(beginMsg.TxnContext().TxnID)
 	}
+	// TODO:COMMENT_TO_REMOVE 创建一个txn缓存后续 事务内的消息
 	b.builders[beginMsg.TxnContext().TxnID] = message.NewImmutableTxnMessageBuilder(beginMsg)
 	b.bytes += beginMsg.EstimateSize()
 }

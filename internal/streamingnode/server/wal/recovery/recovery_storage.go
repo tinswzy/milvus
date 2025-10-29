@@ -20,7 +20,12 @@ type RecoverySnapshot struct {
 	VChannels          map[string]*streamingpb.VChannelMeta
 	SegmentAssignments map[int64]*streamingpb.SegmentAssignmentMeta
 	Checkpoint         *WALCheckpoint
-	TxnBuffer          *utility.TxnBuffer
+	TxnBuffer          *utility.TxnBuffer // TODO:COMMENT_TO_REMOVE recover的事务
+
+	// used to mark switch MQ msg found
+	FoundSwitchMQMsg bool
+	TargetMQ         string
+	SwitchConfig     map[string]string
 }
 
 type BuildRecoveryStreamParam struct {
@@ -83,6 +88,8 @@ type RecoveryStorage interface {
 	// UpdateFlusherCheckpoint updates the checkpoint of flusher.
 	// TODO: should be removed in future, after merge the flusher logic into recovery storage.
 	UpdateFlusherCheckpoint(vchannel string, checkpoint *WALCheckpoint)
+
+	GetFlusherCheckpoint() *WALCheckpoint
 
 	// Close closes the recovery storage.
 	Close()

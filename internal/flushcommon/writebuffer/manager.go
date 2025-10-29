@@ -199,6 +199,18 @@ func (m *bufferManager) SealSegments(ctx context.Context, channel string, segmen
 	return buf.SealSegments(ctx, segmentIDs)
 }
 
+// SealAllSegments call sync segment and change segments state to Flushed of the channel
+func (m *bufferManager) SealAllSegments(ctx context.Context, channel string) error {
+	buf, loaded := m.buffers.Get(channel)
+	if !loaded {
+		log.Ctx(ctx).Warn("write buffer not found when flush segments",
+			zap.String("channel", channel))
+		return merr.WrapErrChannelNotFound(channel)
+	}
+
+	return buf.SealAllSegments(ctx)
+}
+
 func (m *bufferManager) FlushChannel(ctx context.Context, channel string, flushTs uint64) error {
 	buf, loaded := m.buffers.Get(channel)
 	if !loaded {

@@ -162,7 +162,7 @@ func (es *EtcdSource) refreshConfigurations() error {
 		key = strings.TrimPrefix(key, prefix+"/")
 		newConfig[key] = string(kv.Value)
 		newConfig[formatKey(key)] = string(kv.Value)
-		log.Debug("got config from etcd", zap.String("key", string(kv.Key)), zap.String("value", string(kv.Value)))
+		log.Info("got config from etcd", zap.String("key", string(kv.Key)), zap.String("value", string(kv.Value)))
 	}
 	return es.update(newConfig)
 }

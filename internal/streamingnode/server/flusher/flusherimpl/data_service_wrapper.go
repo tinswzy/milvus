@@ -45,7 +45,9 @@ func (ds *dataSyncServiceWrapper) Start() {
 
 // HandleMessage handles the incoming message.
 func (ds *dataSyncServiceWrapper) HandleMessage(ctx context.Context, msg message.ImmutableMessage) error {
+	// TODO:COMMENT_TO_REMOVE 单msg pack去重
 	ds.handler.GenerateMsgPack(msg)
+	// TODO:COMMENT_TO_REMOVE 逐个 msg pack处理
 	for ds.handler.PendingMsgPack.Len() > 0 {
 		next := ds.handler.PendingMsgPack.Next()
 		nextTsMsg := msgstream.MustBuildMsgPackFromConsumeMsgPack(next, adaptor.UnmashalerDispatcher)
@@ -62,7 +64,7 @@ func (ds *dataSyncServiceWrapper) HandleMessage(ctx context.Context, msg message
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case ds.input <- nextTsMsg:
+		case ds.input <- nextTsMsg: // TODO:COMMENT_TO_REMOVE 放入 data sync service的chan，经历 flow graph各个node然后落盘
 			// The input channel will never get stuck because the data sync service will consume the message continuously.
 			ds.handler.PendingMsgPack.UnsafeAdvance()
 		}

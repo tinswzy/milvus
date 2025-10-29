@@ -55,6 +55,12 @@ require (
 	google.golang.org/grpc/examples v0.0.0-20220617181431-3e7b97febc7f
 )
 
+replace (
+    // TODO remove when milvus-proto update first
+	github.com/milvus-io/milvus-proto/go-api/v2 => ./cmake_build/thirdparty/milvus-proto/go-api
+)
+
+
 require (
 	cloud.google.com/go/storage v1.50.0
 	github.com/antlr4-go/antlr/v4 v4.13.1

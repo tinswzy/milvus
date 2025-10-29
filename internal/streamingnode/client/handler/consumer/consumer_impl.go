@@ -269,7 +269,7 @@ func (c *consumerImpl) handleTxnMessage(msg message.ImmutableMessage) error {
 		if c.txnBuilder == nil {
 			panic("unreachable code: txn builder should not be nil if we receive a non-begin txn message")
 		}
-		c.txnBuilder.Add(msg)
+		c.txnBuilder.Add(msg) // TODO:COMMENT_TO_REMOVE  消费的时候，msg都向txn builder 统一组装 消息
 	}
 	return nil
 }

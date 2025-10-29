@@ -38,6 +38,11 @@ func main() {
 	streamingutil.SetStreamingServiceEnabled()
 
 	defer asan.LsanDoLeakCheck()
+	os.Args = []string{
+		"./bin/milvus",
+		"run",
+		"standalone",
+	}
 	idx := slices.Index(os.Args, "--run-with-subprocess")
 
 	// execute command as a subprocess if the command contains "--run-with-subprocess"

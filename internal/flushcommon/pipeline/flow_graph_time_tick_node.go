@@ -137,6 +137,7 @@ func (ttn *ttNode) updateChannelCP(channelPos *msgpb.MsgPosition, curTs time.Tim
 			zap.Uint64("cpTs", channelPos.GetTimestamp()),
 			zap.Time("cpTime", channelCPTs))
 	}
+	// TODO:COMMENT_TO_REMOVE 添加一个 同步vchan的 flush checkpoint
 	ttn.cpUpdater.AddTask(channelPos, flush, callBack)
 	ttn.lastUpdateTime.Store(curTs)
 }
