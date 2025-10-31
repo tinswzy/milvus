@@ -126,6 +126,9 @@ func (impl *flusherComponents) WhenDropCollection(vchannel string) {
 func (impl *flusherComponents) HandleMessage(ctx context.Context, msg message.ImmutableMessage) error {
 	vchannel := msg.VChannel()
 	//  TODO:COMMENT_TO_REMOVE tt发送的时候是没有channel名字的，而如果 广播操作的话，分pchannel广播和vch广播，pch广播的时候这里的channel名字是一定有的，要通过funcutil.IsPhysicalChannel判断
+	if msg.MessageType() == message.MessageTypeSwitchMQ {
+		impl.logger.Info("SWITCH_MQ_STEPS: found switch mq msg, broad cast", zap.String("channel", vchannel), zap.Bool("isPhysicalChannel", funcutil.IsPhysicalChannel(vchannel)))
+	}
 	if vchannel == "" || funcutil.IsPhysicalChannel(vchannel) {
 		return impl.broadcastToAllDataSyncService(ctx, msg)
 	}
@@ -139,6 +142,7 @@ func (impl *flusherComponents) HandleMessage(ctx context.Context, msg message.Im
 func (impl *flusherComponents) broadcastToAllDataSyncService(ctx context.Context, msg message.ImmutableMessage) error {
 	for _, ds := range impl.dataServices {
 		if err := ds.HandleMessage(ctx, msg); err != nil {
+			impl.logger.Error("SWITCH_MQ_STEPS: flusherComponents handle message failed when broadcastToAll dss", zap.Error(err))
 			return err
 		}
 	}

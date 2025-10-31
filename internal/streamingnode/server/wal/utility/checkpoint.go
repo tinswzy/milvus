@@ -32,6 +32,8 @@ type WALCheckpoint struct {
 	Magic               int64
 	ReplicateCheckpoint *ReplicateCheckpoint
 	ReplicateConfig     *commonpb.ReplicateConfiguration
+	IsSwitchMqMsg       bool
+	TargetMq            string
 }
 
 // IntoProto converts the WALCheckpoint to a protobuf message.
@@ -45,6 +47,8 @@ func (c *WALCheckpoint) IntoProto() *streamingpb.WALCheckpoint {
 		RecoveryMagic:       c.Magic,
 		ReplicateConfig:     c.ReplicateConfig,
 		ReplicateCheckpoint: c.ReplicateCheckpoint.IntoProto(),
+		IsSwitchMqMsg:       c.IsSwitchMqMsg,
+		TargetMq:            c.TargetMq,
 	}
 }
 
@@ -56,6 +60,8 @@ func (c *WALCheckpoint) Clone() *WALCheckpoint {
 		Magic:               c.Magic,
 		ReplicateConfig:     c.ReplicateConfig,
 		ReplicateCheckpoint: c.ReplicateCheckpoint.Clone(),
+		IsSwitchMqMsg:       c.IsSwitchMqMsg,
+		TargetMq:            c.TargetMq,
 	}
 }
 
@@ -69,6 +75,7 @@ func NewReplicateCheckpointFromProto(cp *commonpb.ReplicateCheckpoint) *Replicat
 		ClusterID: cp.ClusterId,
 		PChannel:  cp.Pchannel,
 		TimeTick:  cp.TimeTick,
+		// TODO ? ？？远端不需要切换行为。不耦合远端集群的mq类型限制
 	}
 }
 

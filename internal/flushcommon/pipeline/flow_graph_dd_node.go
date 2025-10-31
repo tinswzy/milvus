@@ -286,7 +286,7 @@ func (ddn *ddNode) Operate(in []Msg) []Msg {
 			ddn.msgHandler.HandleSchemaChange(ddn.ctx, schemaMsg.SchemaChangeMessage)
 		case commonpb.MsgType_SwitchMQ:
 			switchMQMsg := msg.(*adaptor.SwitchMessageBody)
-			log.Info("receive switch mq message",
+			log.Info("SWITCH_MQ_STEPS: receive switch mq message",
 				zap.String("pchannel", switchMQMsg.SwitchMQMessage.VChannel()), // TODO:COMMENT_TO_REMOVE pchan广播消息中，msg里面放的是pchannel 名字
 				zap.String("vchannel", ddn.vChannelName),
 				zap.String("targetMq", switchMQMsg.SwitchMQMessage.Header().TargetMq),

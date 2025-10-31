@@ -135,7 +135,7 @@ func (impl *WALFlusherImpl) Close() {
 func (impl *WALFlusherImpl) buildFlusherComponents(ctx context.Context, l wal.WAL, snapshot *recovery.RecoverySnapshot) (*flusherComponents, message.MessageID, error) {
 	// Get all existed vchannels of the pchannel.
 	vchannels := lo.Keys(snapshot.VChannels)
-	impl.logger.Info("fetch vchannel done", zap.Int("vchannelNum", len(vchannels)))
+	impl.logger.Info("SWITCH_MQ_STEPS: fetch vchannel done", zap.Int("vchannelNum", len(vchannels)))
 
 	// Get all the recovery info of the recoverable vchannels.
 	recoverInfos, checkpoint, err := impl.getRecoveryInfos(ctx, vchannels)
@@ -188,7 +188,16 @@ func (impl *WALFlusherImpl) buildFlusherComponents(ctx context.Context, l wal.WA
 		impl.logger.Info("flusher recycle the resource done")
 		return nil, nil, err
 	}
-	impl.logger.Info("flusher recovery done")
+	impl.logger.Info("SWITCH_MQ_STEPS: flusher recovery done",
+		zap.String("pchannel", l.Channel().Name),
+		zap.String("pcWalType", l.WALName().String()),
+		zap.String("flusherCpWAType", checkpoint.WALName().String()),
+		zap.String("flusherCp", checkpoint.String()))
+	for k, v := range recoverInfos {
+		impl.logger.Info("SWITCH_MQ_STEPS: flusher recover info",
+			zap.String("vchannel", k),
+			zap.Any("recoverInfo", v.Info))
+	}
 	return fc, checkpoint, nil
 }
 

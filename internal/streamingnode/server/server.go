@@ -61,6 +61,8 @@ func (s *Server) Stop() {
 // initBasicComponent initialize all underlying dependency for streamingnode.
 func (s *Server) initBasicComponent() {
 	var err error
+	// WAL Manager now uses dynamic opener that can handle multiple MQ types at runtime
+	// The specific MQ type will be determined when opening each channel based on OpenOption.WALName
 	s.walManager, err = walmanager.OpenManager()
 	if err != nil {
 		panic(fmt.Sprintf("open wal manager failed, %+v", err))

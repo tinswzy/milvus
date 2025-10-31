@@ -707,6 +707,9 @@ message WALCheckpoint {
     common.ReplicateConfiguration replicate_config = 4; // if the wal join a replicated clusters, the replicate config is not null,
     common.ReplicateCheckpoint replicate_checkpoint = 5; // if the wal is replicated from remote cluster, the checkpoint is not null,
     // It's used to recover the replication state for remote cluster.
+    // TODO 记录switch MQ msg与否
+    bool is_switch_mq_msg = 6;
+    string target_mq = 7;
 }
 
 // ReplicateConfigurationMeta is the replicate configuration of the wal.

@@ -31,5 +31,5 @@ func (b builderAdaptorImpl) Build() (wal.Opener, error) {
 		return nil, err
 	}
 	// Add all interceptor here.
-	return adaptImplsToOpener(o, b.interceptorBuilders), nil
+	return adaptImplsToOpener(o, b.interceptorBuilders...), nil
 }

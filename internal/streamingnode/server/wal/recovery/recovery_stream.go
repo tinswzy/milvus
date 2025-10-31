@@ -42,11 +42,13 @@ func (r *recoveryStorageImpl) recoverFromStream(
 			r.Logger().Warn("recovery from wal stream failed", zap.Error(err))
 			return
 		}
-		r.Logger().Info("recovery from wal stream done",
+		r.Logger().Info("SWITCH_MQ_STEPS: recovery from wal stream done",
 			zap.Int("vchannels", len(snapshot.VChannels)),
 			zap.Int("segments", len(snapshot.SegmentAssignments)),
 			zap.String("checkpoint", snapshot.Checkpoint.MessageID.String()),
 			zap.Uint64("timetick", snapshot.Checkpoint.TimeTick),
+			zap.Bool("foundSwitch", snapshot.FoundSwitchMQMsg),
+			zap.String("targetMQ", snapshot.TargetMQ),
 		)
 	}()
 L:

@@ -180,7 +180,7 @@ func NewAlterCollectionMessageBody(msg message.ImmutableMessage) (msgstream.TsMs
 
 type SwitchMessageBody struct {
 	*tsMsgImpl
-	SwitchMQMessage message.ImmutableImmutableSwitchMQMessage
+	SwitchMQMessage message.ImmutableSwitchMQMessageV1
 }
 
 func (p *SwitchMessageBody) ID() msgstream.UniqueID {
@@ -188,7 +188,7 @@ func (p *SwitchMessageBody) ID() msgstream.UniqueID {
 }
 
 func NewSwitchMessageBody(msg message.ImmutableMessage) (msgstream.TsMsg, error) {
-	switchMsg := message.MustAsImmutableSwitchMQMessage(msg)
+	switchMsg := message.MustAsImmutableSwitchMQMessageV1(msg)
 	return &SwitchMessageBody{
 		tsMsgImpl: &tsMsgImpl{
 			BaseMsg: msgstream.BaseMsg{

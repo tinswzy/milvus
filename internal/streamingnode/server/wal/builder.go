@@ -7,6 +7,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
 )
 
+// TODO 移除掉，它的现在是全局静态一个，而且是启动的时候的
 // OpenerBuilder is the interface for build wal opener.
 type OpenerBuilder interface {
 	// Name of the wal builder, should be a lowercase string.
@@ -21,6 +22,7 @@ type OpenOption struct {
 	DisableFlusher bool // disable flusher for test, only use in test.
 }
 
+// TODO 改成可以 open不同mqtype的wal。用工厂根据mqtype构建不同的wal
 // Opener is the interface for build wal instance.
 type Opener interface {
 	// Open open a wal instance.

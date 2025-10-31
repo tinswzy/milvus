@@ -112,15 +112,18 @@ func (impl *msgHandlerImpl) HandleSchemaChange(ctx context.Context, msg message.
 	return impl.wbMgr.SealSegments(context.Background(), msg.VChannel(), msg.Header().FlushedSegmentIds)
 }
 
-func (impl *msgHandlerImpl) HandleSwitchMQ(switchMqMsg message.ImmutableImmutableSwitchMQMessage, currentVChannel string) error {
+func (impl *msgHandlerImpl) HandleSwitchMQ(switchMqMsg message.ImmutableSwitchMQMessageV1, currentVChannel string) error {
 	// TODO:COMMENT_TO_REMOVE 根据msg type 为 switch mq，触发一下 flow graph 的flush，让他调用 flush checkpoint。然后 外面openWAL的地方 轮训cpUpdater 所有点位都更新到目标点位。
 	// TODO sealed 当前datasync service的vchannel的所有 segments 【注意这里不是 用 switchMqMsg里面的 pchannel 名字】
 	vchannel := currentVChannel
-	if err := impl.wbMgr.SealSegments(context.Background(), vchannel, nil); err != nil {
-		return errors.Wrap(err, "failed to seal segments")
+	logger := log.With(zap.String("currentVChannel", currentVChannel), zap.Uint64("timetick", switchMqMsg.TimeTick()))
+	if err := impl.wbMgr.SealAllSegments(context.Background(), vchannel); err != nil {
+		return errors.Wrap(err, "SWITCH_MQ_STEPS: failed to seal segments")
 	}
+	logger.Info("SWITCH_MQ_STEPS: seal segments completed")
 	if err := impl.wbMgr.FlushChannel(context.Background(), vchannel, switchMqMsg.TimeTick()); err != nil {
-		return errors.Wrap(err, "failed to flush channel")
+		return errors.Wrap(err, "SWITCH_MQ_STEPS: failed to flush channel")
 	} // may be redundant.
+	logger.Info("SWITCH_MQ_STEPS: flush channel completed")
 	return nil
 }

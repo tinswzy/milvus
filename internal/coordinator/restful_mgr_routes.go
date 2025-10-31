@@ -1151,26 +1151,28 @@ func (s *mixCoordImpl) HandleMQSwitch(w http.ResponseWriter, req *http.Request) 
 
 	// Parse JSON request body
 	if err := json.NewDecoder(req.Body).Decode(&requestBody); err != nil {
-		logger.Info("HandleMQSwitch failed to decode request body", zap.Error(err))
+		logger.Info("SWITCH_MQ_STEPS: HandleMQSwitch failed to decode request body", zap.Error(err))
 		http.Error(w, `{"msg": "Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
 	// Validate target MQ type
 	if requestBody.TargetMQType == "" {
-		logger.Info("HandleMQSwitch missing target_mq_type")
+		logger.Info("SWITCH_MQ_STEPS: HandleMQSwitch missing target_mq_type")
 		http.Error(w, `{"msg": "target_mq_type is required"}`, http.StatusBadRequest)
 		return
 	}
 
+	logger.Info("SWITCH_MQ_STEPS: HandleMQSwitch start broadcasting SwitchMQ message", zap.String("targetMQ", requestBody.TargetMQType), zap.Any("config", requestBody.Config))
+
 	// Broadcast MQ Switch control message to all streaming nodes
 	if err := s.broadcastMQSwitchMessage(req.Context(), requestBody.TargetMQType, requestBody.Config); err != nil {
-		logger.Info("HandleMQSwitch failed to broadcast message", zap.Error(err))
-		http.Error(w, fmt.Sprintf(`{"msg": "failed to broadcast MQ switch message, %s"}`, err.Error()), http.StatusInternalServerError)
+		logger.Info("SWITCH_MQ_STEPS: HandleMQSwitch failed to broadcast message", zap.Error(err))
+		http.Error(w, fmt.Sprintf(`{"msg": "failed to broadcast SwitchMQ message, %s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	logger.Info("HandleMQSwitch success", zap.String("targetMQType", requestBody.TargetMQType))
+	logger.Info("SWITCH_MQ_STEPS: HandleMQSwitch finish broadcasting SwitchMQ message", zap.String("targetMQType", requestBody.TargetMQType))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"msg": "OK"}`))
@@ -1185,10 +1187,10 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 	broadcaster, err := broadcast.StartBroadcastWithResourceKeys(ctx, message.NewExclusiveClusterResourceKey())
 	if err != nil {
 		if errors.Is(err, broadcast.ErrNotPrimary) {
-			logger.Warn("broadcastMQSwitchMessage failed: current cluster is not primary", zap.Error(err))
+			logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed: current cluster is not primary", zap.Error(err))
 			return errors.Wrap(err, "current cluster is not primary, cannot perform MQ switch")
 		}
-		logger.Warn("broadcastMQSwitchMessage failed to start broadcast", zap.Error(err))
+		logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed to start broadcast", zap.Error(err))
 		return errors.Wrap(err, "failed to start broadcast")
 	}
 	defer broadcaster.Close()
@@ -1196,14 +1198,14 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 	// Get balancer to access channel assignments
 	balancer, err := balance.GetWithContext(ctx)
 	if err != nil {
-		logger.Warn("broadcastMQSwitchMessage failed to get balancer", zap.Error(err))
+		logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed to get balancer", zap.Error(err))
 		return errors.Wrap(err, "failed to get balancer")
 	}
 
 	// Get all pchannels from the latest channel assignment
 	latestAssignment, err := balancer.GetLatestChannelAssignment()
 	if err != nil {
-		logger.Warn("broadcastMQSwitchMessage failed to get latest channel assignment", zap.Error(err))
+		logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed to get latest channel assignment", zap.Error(err))
 		return errors.Wrap(err, "failed to get channel assignment")
 	}
 
@@ -1216,11 +1218,11 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 
 	// If no pchannels found, return early
 	if len(pchannels) == 0 {
-		logger.Info("broadcastMQSwitchMessage no active pchannels found, skipping broadcast")
+		logger.Info("SWITCH_MQ_STEPS: broadcastMQSwitchMessage no active pchannels found, skipping broadcast")
 		return nil
 	}
 
-	logger.Info("broadcastMQSwitchMessage preparing to broadcast",
+	logger.Info("SWITCH_MQ_STEPS: broadcastMQSwitchMessage preparing to broadcast",
 		zap.String("targetMQType", targetMQType),
 		zap.Int("pchannelCount", len(pchannels)),
 		zap.Strings("pchannels", pchannels))
@@ -1237,7 +1239,7 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 
 	// Create MQ Switch broadcast message
 	// Broadcast to all pchannels directly, no need to handle control channel specially
-	broadcastMsg, err := message.NewSwitchMQMessageBuilder().
+	broadcastMsg, err := message.NewSwitchMQMessageBuilderV1().
 		WithHeader(&message.SwitchMQMessageHeader{
 			TargetMq: targetMQType,
 			Config:   properties,
@@ -1246,18 +1248,18 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 		WithBroadcast(pchannels).
 		BuildBroadcast()
 	if err != nil {
-		logger.Warn("broadcastMQSwitchMessage failed to build broadcast message", zap.Error(err))
+		logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed to build broadcast message", zap.Error(err))
 		return errors.Wrap(err, "failed to build broadcast message")
 	}
 
 	// Broadcast the message to all vchannels
 	result, err := broadcaster.Broadcast(ctx, broadcastMsg)
 	if err != nil {
-		logger.Warn("broadcastMQSwitchMessage failed to broadcast message", zap.Error(err))
+		logger.Warn("SWITCH_MQ_STEPS: broadcastMQSwitchMessage failed to broadcast message", zap.Error(err))
 		return errors.Wrap(err, "failed to broadcast message")
 	}
 
-	logger.Info("broadcastMQSwitchMessage broadcast successful",
+	logger.Info("SWITCH_MQ_STEPS: broadcastMQSwitchMessage broadcast successful",
 		zap.String("targetMQType", targetMQType),
 		zap.Int("pchannelCount", len(result.AppendResults)),
 		zap.Uint64("broadcastID", result.BroadcastID))

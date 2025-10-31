@@ -7,14 +7,14 @@ import (
 
 	"github.com/milvus-io/milvus/internal/streamingnode/server/resource"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal"
+	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/adaptor"
+	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors/lock"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors/redo"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors/replicate"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors/shard"
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors/timetick"
-	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/registry"
 	"github.com/milvus-io/milvus/internal/util/streamingutil/status"
-	"github.com/milvus-io/milvus/internal/util/streamingutil/util"
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
@@ -23,19 +23,23 @@ import (
 var errWALManagerClosed = status.NewOnShutdownError("wal manager is closed")
 
 // OpenManager create a wal manager.
+// It creates a dynamic opener that can open different wal implementations at runtime.
+// The specific MQ type is determined by OpenOption.WALName when opening each channel.
 func OpenManager() (Manager, error) {
-	walName := util.MustSelectWALName()
-	resource.Resource().Logger().Info("open wal manager", zap.Stringer("walName", walName))
-	opener, err := registry.MustGetBuilder(walName,
-		redo.NewInterceptorBuilder(),
-		lock.NewInterceptorBuilder(),
-		replicate.NewInterceptorBuilder(),
-		timetick.NewInterceptorBuilder(),
-		shard.NewInterceptorBuilder(),
-	).Build()
-	if err != nil {
-		return nil, err
-	}
+	resource.Resource().Logger().Info("open wal manager with dynamic opener")
+
+	// Create dynamic opener directly with interceptors
+	// No need to bind to a specific MQ type at construction time
+	opener := adaptor.NewOpenerAdaptor(
+		[]interceptors.InterceptorBuilder{
+			redo.NewInterceptorBuilder(),
+			lock.NewInterceptorBuilder(),
+			replicate.NewInterceptorBuilder(),
+			timetick.NewInterceptorBuilder(),
+			shard.NewInterceptorBuilder(),
+		},
+	)
+
 	return newManager(opener), nil
 }
 

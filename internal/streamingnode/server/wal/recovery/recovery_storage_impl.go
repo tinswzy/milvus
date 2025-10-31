@@ -312,7 +312,7 @@ func (r *recoveryStorageImpl) updateCheckpoint(msg message.ImmutableMessage) {
 
 // The incoming message id is always sorted with timetick.
 func (r *recoveryStorageImpl) handleMessage(msg message.ImmutableMessage) {
-	if msg.VChannel() != "" && msg.MessageType() != message.MessageTypeCreateCollection &&
+	if msg.VChannel() != "" && msg.MessageType() != message.MessageTypeSwitchMQ && msg.MessageType() != message.MessageTypeCreateCollection &&
 		msg.MessageType() != message.MessageTypeDropCollection && r.vchannels[msg.VChannel()] == nil && !funcutil.IsControlChannel(msg.VChannel()) {
 		r.detectInconsistency(msg, "vchannel not found")
 	}
@@ -357,14 +357,14 @@ func (r *recoveryStorageImpl) handleMessage(msg message.ImmutableMessage) {
 	case message.MessageTypeTimeTick:
 		// nothing, the time tick message make no recovery operation.
 	case message.MessageTypeSwitchMQ:
-		immutableMsg := message.MustAsImmutableSwitchMQMessage(msg)
+		immutableMsg := message.MustAsImmutableSwitchMQMessageV1(msg)
 		r.handleSwitchMQType(immutableMsg)
 	}
 }
 
 // handleSwitchMQType handles the switch MQ message.
 // When switching MQ, we need to flush all growing segments to ensure that segment data does not span across different MQ implementations.
-func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableImmutableSwitchMQMessage) {
+func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableSwitchMQMessageV1) {
 	header := msg.Header()
 
 	// Collect all growing segments that need to be flushed
@@ -385,7 +385,7 @@ func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableImmutableS
 	}
 
 	if len(growingSegmentIDs) > 0 {
-		r.Logger().Info("flush all growing segments for MQ switch",
+		r.Logger().Info("SWITCH_MQ_STEPS: flush all growing segments for MQ switch",
 			log.FieldMessage(msg),
 			zap.String("targetMQ", header.TargetMq),
 			zap.Int("flushedSegmentCount", len(growingSegmentIDs)),
@@ -393,7 +393,7 @@ func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableImmutableS
 			zap.Uint64s("segmentRows", segmentRows),
 			zap.Uint64s("segmentBinarySizes", segmentBinarySizes))
 	} else {
-		r.Logger().Info("no growing segments to flush for MQ switch",
+		r.Logger().Info("SWITCH_MQ_STEPS: no growing segments to flush for MQ switch",
 			log.FieldMessage(msg),
 			zap.String("targetMQ", header.TargetMq))
 	}
@@ -404,7 +404,7 @@ func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableImmutableS
 	r.targetMQ = header.TargetMq
 	r.switchConfig = header.Config
 
-	r.Logger().Info("switch MQ information recorded",
+	r.Logger().Info("SWITCH_MQ_STEPS: switch MQ information recorded",
 		zap.Bool("foundSwitchMQMsg", r.foundSwitchMQMsg),
 		zap.String("targetMQ", r.targetMQ),
 		zap.Any("switchConfig", r.switchConfig))
@@ -592,6 +592,28 @@ func (r *recoveryStorageImpl) detectInconsistency(msg message.ImmutableMessage, 
 	// because our meta is not atomic-updated, so these error may be logged if crashes when meta updated partially.
 	r.Logger().Warn("inconsistency detected", fields...)
 	r.metrics.ObserveInconsitentEvent()
+}
+
+func (r *recoveryStorageImpl) GetFlusherCheckpointAdv() *WALCheckpoint {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(r.vchannels) == 0 {
+		r.Logger().Info("SWITCH_MQ_STEPS: get flush checkpoint fast return pChan cp, due to no vChan", zap.String("pChannel", r.channel.String()))
+		return r.checkpoint
+	}
+
+	var minimumCheckpoint *WALCheckpoint
+	for _, vchannel := range r.vchannels {
+		if vchannel.GetFlushCheckpoint() == nil {
+			// If any flush checkpoint is not set, not ready.
+			return nil
+		}
+		if minimumCheckpoint == nil || vchannel.GetFlushCheckpoint().TimeTick < minimumCheckpoint.TimeTick {
+			minimumCheckpoint = vchannel.GetFlushCheckpoint()
+		}
+	}
+	return minimumCheckpoint
 }
 
 // GetFlusherCheckpoint returns flusher checkpoint concurrent-safe

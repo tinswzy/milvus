@@ -46,10 +46,12 @@ func (r *recoveryStorageImpl) recoverRecoveryInfoFromMeta(ctx context.Context, c
 		}
 	}
 	r.checkpoint = utility.NewWALCheckpointFromProto(cpProto)
-	r.Logger().Info("recover checkpoint done",
+	r.Logger().Info("SWITCH_MQ_STEPS: recover checkpoint from meta done",
 		zap.String("checkpoint", r.checkpoint.MessageID.String()),
 		zap.Uint64("timetick", r.checkpoint.TimeTick),
 		zap.Int64("magic", r.checkpoint.Magic),
+		zap.Bool("isSwitchMQ", r.checkpoint.IsSwitchMqMsg),
+		zap.String("targetMQ", r.checkpoint.TargetMq),
 	)
 
 	// TODO:COMMENT_TO_REMOVE 得到这个pChannel 对应的所有vchannels meta 和 vchannel的 flush checkpoint

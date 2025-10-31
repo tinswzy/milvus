@@ -45,7 +45,7 @@ func (m *msgHandlerImpl) HandleSchemaChange(ctx context.Context, msg message.Imm
 	panic("unreachable code")
 }
 
-func (m *msgHandlerImpl) HandleSwitchMQ(switchMqMsg message.ImmutableImmutableSwitchMQMessage, vchannel string) error {
+func (m *msgHandlerImpl) HandleSwitchMQ(switchMqMsg message.ImmutableSwitchMQMessageV1, vchannel string) error {
 	panic("unreachable code")
 }
 

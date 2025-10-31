@@ -38,6 +38,7 @@ func main() {
 	streamingutil.SetStreamingServiceEnabled()
 
 	defer asan.LsanDoLeakCheck()
+	// TODO switch mq related
 	os.Args = []string{
 		"./bin/milvus",
 		"run",

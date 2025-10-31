@@ -1,6 +1,8 @@
 package recovery
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/log"
+	"go.uber.org/zap"
 	"math"
 
 	"github.com/cockroachdb/errors"
@@ -104,6 +106,11 @@ func (info *vchannelRecoveryInfo) GetSchema(timetick uint64) (int, *schemapb.Col
 
 // UpdateFlushCheckpoint updates the flush checkpoint of the vchannel recovery info.
 func (info *vchannelRecoveryInfo) UpdateFlushCheckpoint(checkpoint *WALCheckpoint) error {
+	log.Info("SWITCH_MQ_STEPS: update flush checkpoint", zap.String("vchannel", info.meta.Vchannel),
+		zap.String("msgId", checkpoint.MessageID.String()),
+		zap.Bool("isSwitch", checkpoint.IsSwitchMqMsg),
+		zap.String("targetMq", checkpoint.TargetMq),
+		zap.Uint64("timeTick", checkpoint.TimeTick))
 	if info.flusherCheckpoint == nil || info.flusherCheckpoint.MessageID.LTE(checkpoint.MessageID) {
 		info.flusherCheckpoint = checkpoint
 		idx, _ := info.GetSchema(info.flusherCheckpoint.TimeTick)

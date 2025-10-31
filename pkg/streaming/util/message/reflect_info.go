@@ -1829,15 +1829,46 @@ var MustAsBroadcastDropIndexMessageV2 = MustAsSpecializedBroadcastMessage[*DropI
 // NewDropIndexMessageBuilderV2 creates a new message builder for DropIndexMessageV2
 var NewDropIndexMessageBuilderV2 = newMutableMessageBuilder[*DropIndexMessageHeader, *DropIndexMessageBody]
 
-// MustAsImmutableSwitchMQMessage converts a BasicMessage to SwitchMQMessage, panics on error
-var MustAsImmutableSwitchMQMessage = MustAsSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
-
-// NewSwitchMQMessageBuilder creates a new message builder for SwitchMQMessage
-var NewSwitchMQMessageBuilder = newMutableMessageBuilder[*SwitchMQMessageHeader, *SwitchMQMessageBody]
-
+// Type aliases for SwitchMQMessageV1
 type (
-	ImmutableImmutableSwitchMQMessage = SpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+	MutableSwitchMQMessageV1         = specializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+	ImmutableSwitchMQMessageV1       = SpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+	BroadcastSwitchMQMessageV1       = SpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+	BroadcastResultSwitchMQMessageV1 = BroadcastResult[*SwitchMQMessageHeader, *SwitchMQMessageBody]
 )
+
+// MessageTypeWithVersion for SwitchMQMessageV1
+var MessageTypeSwitchMQV1 = MessageTypeWithVersion{
+	MessageType: MessageTypeSwitchMQ,
+	Version:     VersionV1,
+}
+
+// MessageSpecializedType for SwitchMQMessageV1
+var SpecializedTypeSwitchMQV1 = MessageSpecializedType{
+	BodyType:   reflect.TypeOf((*SwitchMQMessageBody)(nil)),
+	HeaderType: reflect.TypeOf((*SwitchMQMessageHeader)(nil)),
+}
+
+// AsMutableSwitchMQMessageV1 converts a BasicMessage to MutableSwitchMQMessageV1
+var AsMutableSwitchMQMessageV1 = asSpecializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// MustAsMutableSwitchMQMessageV1 converts a BasicMessage to MutableSwitchMQMessageV1, panics on error
+var MustAsMutableSwitchMQMessageV1 = mustAsSpecializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// AsImmutableSwitchMQMessageV1 converts an ImmutableMessage to ImmutableSwitchMQMessageV1
+var AsImmutableSwitchMQMessageV1 = asSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// MustAsImmutableSwitchMQMessageV1 converts an ImmutableMessage to ImmutableSwitchMQMessageV1, panics on error
+var MustAsImmutableSwitchMQMessageV1 = MustAsSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// AsBroadcastSwitchMQMessageV1 converts a BasicMessage to BroadcastSwitchMQMessageV1
+var AsBroadcastSwitchMQMessageV1 = asSpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// MustAsBroadcastSwitchMQMessageV1 converts a BasicMessage to BroadcastSwitchMQMessageV1, panics on error
+var MustAsBroadcastSwitchMQMessageV1 = MustAsSpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+
+// NewSwitchMQMessageBuilderV1 creates a new message builder for SwitchMQMessageV1
+var NewSwitchMQMessageBuilderV1 = newMutableMessageBuilder[*SwitchMQMessageHeader, *SwitchMQMessageBody]
 
 // messageTypeMap make the contriants that one header type can only be used for one message type.
 var messageTypeMap = map[reflect.Type]MessageType{
@@ -1880,9 +1911,9 @@ var messageTypeMap = map[reflect.Type]MessageType{
 	reflect.TypeOf(&messagespb.RestoreRBACMessageHeader{}):          MessageTypeRestoreRBAC,
 	reflect.TypeOf(&messagespb.RollbackTxnMessageHeader{}):          MessageTypeRollbackTxn,
 	reflect.TypeOf(&messagespb.SchemaChangeMessageHeader{}):         MessageTypeSchemaChange,
+	reflect.TypeOf(&messagespb.SwitchMQMessageHeader{}):             MessageTypeSwitchMQ,
 	reflect.TypeOf(&messagespb.TimeTickMessageHeader{}):             MessageTypeTimeTick,
 	reflect.TypeOf(&messagespb.TxnMessageHeader{}):                  MessageTypeTxn,
-	reflect.TypeOf(&messagespb.SwitchMQMessageHeader{}):             MessageTypeSwitchMQ,
 }
 
 // MessageTypeWithVersion identifies a message type and version
@@ -1942,6 +1973,7 @@ var messageTypeVersionSpecializedMap = map[MessageTypeWithVersion]MessageSpecial
 	MessageTypeRestoreRBACV2:          SpecializedTypeRestoreRBACV2,
 	MessageTypeRollbackTxnV2:          SpecializedTypeRollbackTxnV2,
 	MessageTypeSchemaChangeV2:         SpecializedTypeSchemaChangeV2,
+	MessageTypeSwitchMQV1:             SpecializedTypeSwitchMQV1,
 	MessageTypeTimeTickV1:             SpecializedTypeTimeTickV1,
 	MessageTypeTxnV2:                  SpecializedTypeTxnV2,
 }
@@ -1987,6 +2019,7 @@ var messageSpecializedTypeVersionMap = map[MessageSpecializedType]MessageTypeWit
 	SpecializedTypeRestoreRBACV2:          MessageTypeRestoreRBACV2,
 	SpecializedTypeRollbackTxnV2:          MessageTypeRollbackTxnV2,
 	SpecializedTypeSchemaChangeV2:         MessageTypeSchemaChangeV2,
+	SpecializedTypeSwitchMQV1:             MessageTypeSwitchMQV1,
 	SpecializedTypeTimeTickV1:             MessageTypeTimeTickV1,
 	SpecializedTypeTxnV2:                  MessageTypeTxnV2,
 }

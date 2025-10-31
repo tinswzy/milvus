@@ -177,6 +177,7 @@ func (ccu *ChannelCheckpointUpdater) execute() {
 }
 
 func (ccu *ChannelCheckpointUpdater) AddTask(channelPos *msgpb.MsgPosition, flush bool, callback func()) {
+	log.Info("SWITCH_MQ_STEPS: add channel checkpoint task", zap.Any("pos", channelPos))
 	if channelPos == nil || channelPos.GetMsgID() == nil || channelPos.GetChannelName() == "" {
 		log.Warn("illegal checkpoint", zap.Any("pos", channelPos))
 		return

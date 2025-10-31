@@ -190,10 +190,7 @@ func (wb *writeBufferBase) SealSegments(ctx context.Context, segmentIDs []int64)
 func (wb *writeBufferBase) SealAllSegments(ctx context.Context) error {
 	wb.mut.RLock()
 	defer wb.mut.RUnlock()
-	// TODO
-	// return wb.sealAllSegments(ctx)
-
-	return nil
+	return wb.sealAllSegments(ctx)
 }
 
 func (wb *writeBufferBase) DropPartitions(partitionIDs []int64) {
@@ -293,6 +290,16 @@ func (wb *writeBufferBase) sealSegments(_ context.Context, segmentIDs []int64) e
 	// mark segment flushing if segment was growing
 	wb.metaCache.UpdateSegments(metacache.UpdateState(commonpb.SegmentState_Sealed),
 		metacache.WithSegmentIDs(segmentIDs...),
+		metacache.WithSegmentState(commonpb.SegmentState_Growing))
+	return nil
+}
+
+func (wb *writeBufferBase) sealAllSegments(_ context.Context) error {
+	allSegmentIds := wb.metaCache.GetSegmentIDsBy()
+	log.Warn(" SWITCH_MQ_STEPS: find segments when sealSegments", zap.Int("count", len(allSegmentIds)), zap.Int64s("segmentIDs", allSegmentIds))
+	// mark segment flushing if segment was growing
+	wb.metaCache.UpdateSegments(metacache.UpdateState(commonpb.SegmentState_Sealed),
+		metacache.WithSegmentIDs(allSegmentIds...),
 		metacache.WithSegmentState(commonpb.SegmentState_Growing))
 	return nil
 }
