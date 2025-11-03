@@ -64,7 +64,7 @@ const (
 	MessageTypeCreateIndex          MessageType = MessageType(messagespb.MessageType_CreateIndex)
 	MessageTypeAlterIndex           MessageType = MessageType(messagespb.MessageType_AlterIndex)
 	MessageTypeDropIndex            MessageType = MessageType(messagespb.MessageType_DropIndex)
-	MessageTypeSwitchMQ             MessageType = MessageType(messagespb.MessageType_SwitchMQ)
+	MessageTypeAlterWAL             MessageType = MessageType(messagespb.MessageType_AlterWAL)
 )
 
 // Export extra message type
@@ -165,8 +165,8 @@ type (
 	AlterIndexMessageBody             = messagespb.AlterIndexMessageBody
 	DropIndexMessageHeader            = messagespb.DropIndexMessageHeader
 	DropIndexMessageBody              = messagespb.DropIndexMessageBody
-	SwitchMQMessageHeader             = messagespb.SwitchMQMessageHeader
-	SwitchMQMessageBody               = messagespb.SwitchMQMessageBody
+	AlterWALMessageHeader             = messagespb.AlterWALMessageHeader
+	AlterWALMessageBody               = messagespb.AlterWALMessageBody
 )
 
 // Type aliases for TimeTickMessageV1
@@ -1829,46 +1829,46 @@ var MustAsBroadcastDropIndexMessageV2 = MustAsSpecializedBroadcastMessage[*DropI
 // NewDropIndexMessageBuilderV2 creates a new message builder for DropIndexMessageV2
 var NewDropIndexMessageBuilderV2 = newMutableMessageBuilder[*DropIndexMessageHeader, *DropIndexMessageBody]
 
-// Type aliases for SwitchMQMessageV1
+// Type aliases for AlterWALMessageV1
 type (
-	MutableSwitchMQMessageV1         = specializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
-	ImmutableSwitchMQMessageV1       = SpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
-	BroadcastSwitchMQMessageV1       = SpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
-	BroadcastResultSwitchMQMessageV1 = BroadcastResult[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+	MutableAlterWALMessageV1         = specializedMutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
+	ImmutableAlterWALMessageV1       = SpecializedImmutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
+	BroadcastAlterWALMessageV1       = SpecializedBroadcastMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
+	BroadcastResultAlterWALMessageV1 = BroadcastResult[*AlterWALMessageHeader, *AlterWALMessageBody]
 )
 
-// MessageTypeWithVersion for SwitchMQMessageV1
-var MessageTypeSwitchMQV1 = MessageTypeWithVersion{
-	MessageType: MessageTypeSwitchMQ,
+// MessageTypeWithVersion for AlterWALMessageV1
+var MessageTypeAlterWALV1 = MessageTypeWithVersion{
+	MessageType: MessageTypeAlterWAL,
 	Version:     VersionV1,
 }
 
-// MessageSpecializedType for SwitchMQMessageV1
-var SpecializedTypeSwitchMQV1 = MessageSpecializedType{
-	BodyType:   reflect.TypeOf((*SwitchMQMessageBody)(nil)),
-	HeaderType: reflect.TypeOf((*SwitchMQMessageHeader)(nil)),
+// MessageSpecializedType for AlterWALMessageV1
+var SpecializedTypeAlterWALV1 = MessageSpecializedType{
+	BodyType:   reflect.TypeOf((*AlterWALMessageBody)(nil)),
+	HeaderType: reflect.TypeOf((*AlterWALMessageHeader)(nil)),
 }
 
-// AsMutableSwitchMQMessageV1 converts a BasicMessage to MutableSwitchMQMessageV1
-var AsMutableSwitchMQMessageV1 = asSpecializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// AsMutableAlterWALMessageV1 converts a BasicMessage to MutableAlterWALMessageV1
+var AsMutableAlterWALMessageV1 = asSpecializedMutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// MustAsMutableSwitchMQMessageV1 converts a BasicMessage to MutableSwitchMQMessageV1, panics on error
-var MustAsMutableSwitchMQMessageV1 = mustAsSpecializedMutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// MustAsMutableAlterWALMessageV1 converts a BasicMessage to MutableAlterWALMessageV1, panics on error
+var MustAsMutableAlterWALMessageV1 = mustAsSpecializedMutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// AsImmutableSwitchMQMessageV1 converts an ImmutableMessage to ImmutableSwitchMQMessageV1
-var AsImmutableSwitchMQMessageV1 = asSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// AsImmutableAlterWALMessageV1 converts an ImmutableMessage to ImmutableAlterWALMessageV1
+var AsImmutableAlterWALMessageV1 = asSpecializedImmutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// MustAsImmutableSwitchMQMessageV1 converts an ImmutableMessage to ImmutableSwitchMQMessageV1, panics on error
-var MustAsImmutableSwitchMQMessageV1 = MustAsSpecializedImmutableMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// MustAsImmutableAlterWALMessageV1 converts an ImmutableMessage to ImmutableAlterWALMessageV1, panics on error
+var MustAsImmutableAlterWALMessageV1 = MustAsSpecializedImmutableMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// AsBroadcastSwitchMQMessageV1 converts a BasicMessage to BroadcastSwitchMQMessageV1
-var AsBroadcastSwitchMQMessageV1 = asSpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// AsBroadcastAlterWALMessageV1 converts a BasicMessage to BroadcastAlterWALMessageV1
+var AsBroadcastAlterWALMessageV1 = asSpecializedBroadcastMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// MustAsBroadcastSwitchMQMessageV1 converts a BasicMessage to BroadcastSwitchMQMessageV1, panics on error
-var MustAsBroadcastSwitchMQMessageV1 = MustAsSpecializedBroadcastMessage[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// MustAsBroadcastAlterWALMessageV1 converts a BasicMessage to BroadcastAlterWALMessageV1, panics on error
+var MustAsBroadcastAlterWALMessageV1 = MustAsSpecializedBroadcastMessage[*AlterWALMessageHeader, *AlterWALMessageBody]
 
-// NewSwitchMQMessageBuilderV1 creates a new message builder for SwitchMQMessageV1
-var NewSwitchMQMessageBuilderV1 = newMutableMessageBuilder[*SwitchMQMessageHeader, *SwitchMQMessageBody]
+// NewAlterWALMessageBuilderV1 creates a new message builder for AlterWALMessageV1
+var NewAlterWALMessageBuilderV1 = newMutableMessageBuilder[*AlterWALMessageHeader, *AlterWALMessageBody]
 
 // messageTypeMap make the contriants that one header type can only be used for one message type.
 var messageTypeMap = map[reflect.Type]MessageType{
@@ -1911,7 +1911,7 @@ var messageTypeMap = map[reflect.Type]MessageType{
 	reflect.TypeOf(&messagespb.RestoreRBACMessageHeader{}):          MessageTypeRestoreRBAC,
 	reflect.TypeOf(&messagespb.RollbackTxnMessageHeader{}):          MessageTypeRollbackTxn,
 	reflect.TypeOf(&messagespb.SchemaChangeMessageHeader{}):         MessageTypeSchemaChange,
-	reflect.TypeOf(&messagespb.SwitchMQMessageHeader{}):             MessageTypeSwitchMQ,
+	reflect.TypeOf(&messagespb.AlterWALMessageHeader{}):             MessageTypeAlterWAL,
 	reflect.TypeOf(&messagespb.TimeTickMessageHeader{}):             MessageTypeTimeTick,
 	reflect.TypeOf(&messagespb.TxnMessageHeader{}):                  MessageTypeTxn,
 }
@@ -1946,6 +1946,7 @@ var messageTypeVersionSpecializedMap = map[MessageTypeWithVersion]MessageSpecial
 	MessageTypeAlterRoleV2:            SpecializedTypeAlterRoleV2,
 	MessageTypeAlterUserRoleV2:        SpecializedTypeAlterUserRoleV2,
 	MessageTypeAlterUserV2:            SpecializedTypeAlterUserV2,
+	MessageTypeAlterWALV1:             SpecializedTypeAlterWALV1,
 	MessageTypeBeginTxnV2:             SpecializedTypeBeginTxnV2,
 	MessageTypeCommitTxnV2:            SpecializedTypeCommitTxnV2,
 	MessageTypeCreateCollectionV1:     SpecializedTypeCreateCollectionV1,
@@ -1973,7 +1974,6 @@ var messageTypeVersionSpecializedMap = map[MessageTypeWithVersion]MessageSpecial
 	MessageTypeRestoreRBACV2:          SpecializedTypeRestoreRBACV2,
 	MessageTypeRollbackTxnV2:          SpecializedTypeRollbackTxnV2,
 	MessageTypeSchemaChangeV2:         SpecializedTypeSchemaChangeV2,
-	MessageTypeSwitchMQV1:             SpecializedTypeSwitchMQV1,
 	MessageTypeTimeTickV1:             SpecializedTypeTimeTickV1,
 	MessageTypeTxnV2:                  SpecializedTypeTxnV2,
 }
@@ -1992,6 +1992,7 @@ var messageSpecializedTypeVersionMap = map[MessageSpecializedType]MessageTypeWit
 	SpecializedTypeAlterRoleV2:            MessageTypeAlterRoleV2,
 	SpecializedTypeAlterUserRoleV2:        MessageTypeAlterUserRoleV2,
 	SpecializedTypeAlterUserV2:            MessageTypeAlterUserV2,
+	SpecializedTypeAlterWALV1:             MessageTypeAlterWALV1,
 	SpecializedTypeBeginTxnV2:             MessageTypeBeginTxnV2,
 	SpecializedTypeCommitTxnV2:            MessageTypeCommitTxnV2,
 	SpecializedTypeCreateCollectionV1:     MessageTypeCreateCollectionV1,
@@ -2019,7 +2020,6 @@ var messageSpecializedTypeVersionMap = map[MessageSpecializedType]MessageTypeWit
 	SpecializedTypeRestoreRBACV2:          MessageTypeRestoreRBACV2,
 	SpecializedTypeRollbackTxnV2:          MessageTypeRollbackTxnV2,
 	SpecializedTypeSchemaChangeV2:         MessageTypeSchemaChangeV2,
-	SpecializedTypeSwitchMQV1:             MessageTypeSwitchMQV1,
 	SpecializedTypeTimeTickV1:             MessageTypeTimeTickV1,
 	SpecializedTypeTxnV2:                  MessageTypeTxnV2,
 }

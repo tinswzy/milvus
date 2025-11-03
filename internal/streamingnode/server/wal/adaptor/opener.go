@@ -200,7 +200,7 @@ func (o *openerAdaptorImpl) openRWWAL(ctx context.Context, l walimpls.WALImpls, 
 
 	// snapshot倒数第二条是 switch mq的点位，而且checkpoint不是 switch mq点位时，说明checkpoint到 switch mq消息之间还有数据没有flush，需要显式flush掉
 	if snapshot.FoundSwitchMQMsg {
-		return o.handleSwitchMQ(ctx, l, opt, roWAL, param, rs, snapshot)
+		return o.handleAlterWAL(ctx, l, opt, roWAL, param, rs, snapshot)
 	}
 
 	param.InitialRecoverSnapshot = snapshot
@@ -242,12 +242,12 @@ func (o *openerAdaptorImpl) openRWWAL(ctx context.Context, l walimpls.WALImpls, 
 	return wal, nil
 }
 
-// Handle MQ switch: if snapshot has switch MQ flag, we need to:
-// 1. All growing segments have been marked as FLUSHED in recovery storage (handleSwitchMQType)
+// Handle Alter WAL: if snapshot has switch MQ flag, we need to:
+// 1. All growing segments have been marked as FLUSHED in recovery storage (AlterWAL Message Type)
 // 2. Close recovery storage to persist the final snapshot with updated checkpoint
 // 3. Clean up resources
 // 4. Return error to trigger WAL re-opening from the new checkpoint with new MQ type
-func (o *openerAdaptorImpl) handleSwitchMQ(ctx context.Context, l walimpls.WALImpls, opt *wal.OpenOption,
+func (o *openerAdaptorImpl) handleAlterWAL(ctx context.Context, l walimpls.WALImpls, opt *wal.OpenOption,
 	roWAL *roWALAdaptorImpl, param *interceptors.InterceptorBuildParam, rs recovery.RecoveryStorage, snapshot *recovery.RecoverySnapshot,
 ) (wal.WAL, error) {
 	logger := o.Logger().With(

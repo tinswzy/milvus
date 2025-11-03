@@ -24,6 +24,53 @@ func (_m *MockMsgHandler) EXPECT() *MockMsgHandler_Expecter {
 	return &MockMsgHandler_Expecter{mock: &_m.Mock}
 }
 
+// HandleAlterWAL provides a mock function with given fields: alterWALMsg, vchannel
+func (_m *MockMsgHandler) HandleAlterWAL(alterWALMsg message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader, *messagespb.AlterWALMessageBody], vchannel string) error {
+	ret := _m.Called(alterWALMsg, vchannel)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HandleAlterWAL")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader, *messagespb.AlterWALMessageBody], string) error); ok {
+		r0 = rf(alterWALMsg, vchannel)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockMsgHandler_HandleAlterWAL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HandleAlterWAL'
+type MockMsgHandler_HandleAlterWAL_Call struct {
+	*mock.Call
+}
+
+// HandleAlterWAL is a helper method to define mock.On call
+//   - alterWALMsg message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader,*messagespb.AlterWALMessageBody]
+//   - vchannel string
+func (_e *MockMsgHandler_Expecter) HandleAlterWAL(alterWALMsg interface{}, vchannel interface{}) *MockMsgHandler_HandleAlterWAL_Call {
+	return &MockMsgHandler_HandleAlterWAL_Call{Call: _e.mock.On("HandleAlterWAL", alterWALMsg, vchannel)}
+}
+
+func (_c *MockMsgHandler_HandleAlterWAL_Call) Run(run func(alterWALMsg message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader, *messagespb.AlterWALMessageBody], vchannel string)) *MockMsgHandler_HandleAlterWAL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader, *messagespb.AlterWALMessageBody]), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockMsgHandler_HandleAlterWAL_Call) Return(_a0 error) *MockMsgHandler_HandleAlterWAL_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockMsgHandler_HandleAlterWAL_Call) RunAndReturn(run func(message.SpecializedImmutableMessage[*messagespb.AlterWALMessageHeader, *messagespb.AlterWALMessageBody], string) error) *MockMsgHandler_HandleAlterWAL_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // HandleCreateSegment provides a mock function with given fields: ctx, createSegmentMsg
 func (_m *MockMsgHandler) HandleCreateSegment(ctx context.Context, createSegmentMsg message.SpecializedImmutableMessage[*messagespb.CreateSegmentMessageHeader, *messagespb.CreateSegmentMessageBody]) error {
 	ret := _m.Called(ctx, createSegmentMsg)
@@ -206,53 +253,6 @@ func (_c *MockMsgHandler_HandleSchemaChange_Call) Return(_a0 error) *MockMsgHand
 }
 
 func (_c *MockMsgHandler_HandleSchemaChange_Call) RunAndReturn(run func(context.Context, message.SpecializedImmutableMessage[*messagespb.SchemaChangeMessageHeader, *messagespb.SchemaChangeMessageBody]) error) *MockMsgHandler_HandleSchemaChange_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// HandleSwitchMQ provides a mock function with given fields: switchMqMsg, vchannel
-func (_m *MockMsgHandler) HandleSwitchMQ(switchMqMsg message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader, *messagespb.SwitchMQMessageBody], vchannel string) error {
-	ret := _m.Called(switchMqMsg, vchannel)
-
-	if len(ret) == 0 {
-		panic("no return value specified for HandleSwitchMQ")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader, *messagespb.SwitchMQMessageBody], string) error); ok {
-		r0 = rf(switchMqMsg, vchannel)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockMsgHandler_HandleSwitchMQ_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HandleSwitchMQ'
-type MockMsgHandler_HandleSwitchMQ_Call struct {
-	*mock.Call
-}
-
-// HandleSwitchMQ is a helper method to define mock.On call
-//   - switchMqMsg message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader,*messagespb.SwitchMQMessageBody]
-//   - vchannel string
-func (_e *MockMsgHandler_Expecter) HandleSwitchMQ(switchMqMsg interface{}, vchannel interface{}) *MockMsgHandler_HandleSwitchMQ_Call {
-	return &MockMsgHandler_HandleSwitchMQ_Call{Call: _e.mock.On("HandleSwitchMQ", switchMqMsg, vchannel)}
-}
-
-func (_c *MockMsgHandler_HandleSwitchMQ_Call) Run(run func(switchMqMsg message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader, *messagespb.SwitchMQMessageBody], vchannel string)) *MockMsgHandler_HandleSwitchMQ_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader, *messagespb.SwitchMQMessageBody]), args[1].(string))
-	})
-	return _c
-}
-
-func (_c *MockMsgHandler_HandleSwitchMQ_Call) Return(_a0 error) *MockMsgHandler_HandleSwitchMQ_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockMsgHandler_HandleSwitchMQ_Call) RunAndReturn(run func(message.SpecializedImmutableMessage[*messagespb.SwitchMQMessageHeader, *messagespb.SwitchMQMessageBody], string) error) *MockMsgHandler_HandleSwitchMQ_Call {
 	_c.Call.Return(run)
 	return _c
 }

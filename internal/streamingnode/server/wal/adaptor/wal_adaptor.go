@@ -197,9 +197,9 @@ func (w *walAdaptorImpl) Append(ctx context.Context, msg message.MutableMessage)
 		return nil, err
 	}
 	// written msg success, mark unavailable if it is a switch mq message before return origin result
-	if msg.MessageType() == message.MessageTypeSwitchMQ {
+	if msg.MessageType() == message.MessageTypeAlterWAL {
 		w.Logger().Info("SWITCH_MQ_STEPS: switch MQ msg detected, mark as fenced and unavailable, all append operations will be rejected",
-			zap.Bool("isSwitchMq", msg.MessageType() == message.MessageTypeSwitchMQ))
+			zap.Bool("isSwitchMq", msg.MessageType() == message.MessageTypeAlterWAL))
 		w.isFenced.CompareAndSwap(false, true)
 		// append success and it is a switch mq message
 		w.forceCancelAfterGracefulTimeout()
@@ -237,7 +237,7 @@ func (w *walAdaptorImpl) retryAppendWhenRecoverableError(ctx context.Context, ms
 	for i := 0; ; i++ {
 		msgID, err := w.rwWALImpls.Append(ctx, msg)
 		if err == nil {
-			if msg.MessageType() == message.MessageTypeSwitchMQ {
+			if msg.MessageType() == message.MessageTypeAlterWAL {
 				// if the append operation is a switch mq message, print some info
 				w.Logger().Info("SWITCH_MQ_STEPS: append switch mq message to WAL finish", zap.String("channel", msg.VChannel()), zap.Uint64("timetick", msg.TimeTick()))
 			}

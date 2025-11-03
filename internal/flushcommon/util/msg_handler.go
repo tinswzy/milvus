@@ -33,7 +33,7 @@ type MsgHandler interface {
 
 	HandleSchemaChange(ctx context.Context, schemaChangeMsg message.ImmutableSchemaChangeMessageV2) error
 
-	HandleSwitchMQ(switchMqMsg message.ImmutableSwitchMQMessageV1, vchannel string) error
+	HandleAlterWAL(alterWALMsg message.ImmutableAlterWALMessageV1, vchannel string) error
 }
 
 func ConvertInternalImportFile(file *msgpb.ImportFile, _ int) *internalpb.ImportFile {

@@ -312,7 +312,7 @@ func (r *recoveryStorageImpl) updateCheckpoint(msg message.ImmutableMessage) {
 
 // The incoming message id is always sorted with timetick.
 func (r *recoveryStorageImpl) handleMessage(msg message.ImmutableMessage) {
-	if msg.VChannel() != "" && msg.MessageType() != message.MessageTypeSwitchMQ && msg.MessageType() != message.MessageTypeCreateCollection &&
+	if msg.VChannel() != "" && msg.MessageType() != message.MessageTypeAlterWAL && msg.MessageType() != message.MessageTypeCreateCollection &&
 		msg.MessageType() != message.MessageTypeDropCollection && r.vchannels[msg.VChannel()] == nil && !funcutil.IsControlChannel(msg.VChannel()) {
 		r.detectInconsistency(msg, "vchannel not found")
 	}
@@ -356,15 +356,15 @@ func (r *recoveryStorageImpl) handleMessage(msg message.ImmutableMessage) {
 		r.handleSchemaChange(immutableMsg)
 	case message.MessageTypeTimeTick:
 		// nothing, the time tick message make no recovery operation.
-	case message.MessageTypeSwitchMQ:
-		immutableMsg := message.MustAsImmutableSwitchMQMessageV1(msg)
-		r.handleSwitchMQType(immutableMsg)
+	case message.MessageTypeAlterWAL:
+		immutableMsg := message.MustAsImmutableAlterWALMessageV1(msg)
+		r.handleAlterWAL(immutableMsg)
 	}
 }
 
-// handleSwitchMQType handles the switch MQ message.
+// handleAlterWAL handles the switch MQ message.
 // When switching MQ, we need to flush all growing segments to ensure that segment data does not span across different MQ implementations.
-func (r *recoveryStorageImpl) handleSwitchMQType(msg message.ImmutableSwitchMQMessageV1) {
+func (r *recoveryStorageImpl) handleAlterWAL(msg message.ImmutableAlterWALMessageV1) {
 	header := msg.Header()
 
 	// Collect all growing segments that need to be flushed

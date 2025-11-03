@@ -70,7 +70,7 @@ const (
 	MessageType_CreateIndex         MessageType = 34
 	MessageType_AlterIndex          MessageType = 35
 	MessageType_DropIndex           MessageType = 36
-	MessageType_SwitchMQ            MessageType = 37
+	MessageType_AlterWAL            MessageType = 37
 	// AlterReplicateConfig is used to alter the replicate configuration to the current cluster.
 	// When the AlterReplicateConfig message is received, the replication topology is changed.
 	// Maybe some cluster give up the leader role, no any other message will be received from this cluster.
@@ -141,7 +141,7 @@ var (
 		34:  "CreateIndex",
 		35:  "AlterIndex",
 		36:  "DropIndex",
-		37:  "SwitchMQ",
+		37:  "AlterWAL",
 		800: "AlterReplicateConfig",
 		900: "BeginTxn",
 		901: "CommitTxn",
@@ -186,7 +186,7 @@ var (
 		"CreateIndex":          34,
 		"AlterIndex":           35,
 		"DropIndex":            36,
-		"SwitchMQ":             37,
+		"AlterWAL":             37,
 		"AlterReplicateConfig": 800,
 		"BeginTxn":             900,
 		"CommitTxn":            901,
@@ -4670,7 +4670,7 @@ func (*DropIndexMessageBody) Descriptor() ([]byte, []int) {
 	return file_messages_proto_rawDescGZIP(), []int{84}
 }
 
-type SwitchMQMessageHeader struct {
+type AlterWALMessageHeader struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -4679,8 +4679,8 @@ type SwitchMQMessageHeader struct {
 	Config   map[string]string `protobuf:"bytes,2,rep,name=config,proto3" json:"config,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
-func (x *SwitchMQMessageHeader) Reset() {
-	*x = SwitchMQMessageHeader{}
+func (x *AlterWALMessageHeader) Reset() {
+	*x = AlterWALMessageHeader{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_messages_proto_msgTypes[85]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4688,13 +4688,13 @@ func (x *SwitchMQMessageHeader) Reset() {
 	}
 }
 
-func (x *SwitchMQMessageHeader) String() string {
+func (x *AlterWALMessageHeader) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SwitchMQMessageHeader) ProtoMessage() {}
+func (*AlterWALMessageHeader) ProtoMessage() {}
 
-func (x *SwitchMQMessageHeader) ProtoReflect() protoreflect.Message {
+func (x *AlterWALMessageHeader) ProtoReflect() protoreflect.Message {
 	mi := &file_messages_proto_msgTypes[85]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4706,33 +4706,33 @@ func (x *SwitchMQMessageHeader) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SwitchMQMessageHeader.ProtoReflect.Descriptor instead.
-func (*SwitchMQMessageHeader) Descriptor() ([]byte, []int) {
+// Deprecated: Use AlterWALMessageHeader.ProtoReflect.Descriptor instead.
+func (*AlterWALMessageHeader) Descriptor() ([]byte, []int) {
 	return file_messages_proto_rawDescGZIP(), []int{85}
 }
 
-func (x *SwitchMQMessageHeader) GetTargetMq() string {
+func (x *AlterWALMessageHeader) GetTargetMq() string {
 	if x != nil {
 		return x.TargetMq
 	}
 	return ""
 }
 
-func (x *SwitchMQMessageHeader) GetConfig() map[string]string {
+func (x *AlterWALMessageHeader) GetConfig() map[string]string {
 	if x != nil {
 		return x.Config
 	}
 	return nil
 }
 
-type SwitchMQMessageBody struct {
+type AlterWALMessageBody struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *SwitchMQMessageBody) Reset() {
-	*x = SwitchMQMessageBody{}
+func (x *AlterWALMessageBody) Reset() {
+	*x = AlterWALMessageBody{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_messages_proto_msgTypes[86]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4740,13 +4740,13 @@ func (x *SwitchMQMessageBody) Reset() {
 	}
 }
 
-func (x *SwitchMQMessageBody) String() string {
+func (x *AlterWALMessageBody) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SwitchMQMessageBody) ProtoMessage() {}
+func (*AlterWALMessageBody) ProtoMessage() {}
 
-func (x *SwitchMQMessageBody) ProtoReflect() protoreflect.Message {
+func (x *AlterWALMessageBody) ProtoReflect() protoreflect.Message {
 	mi := &file_messages_proto_msgTypes[86]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4758,8 +4758,8 @@ func (x *SwitchMQMessageBody) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SwitchMQMessageBody.ProtoReflect.Descriptor instead.
-func (*SwitchMQMessageBody) Descriptor() ([]byte, []int) {
+// Deprecated: Use AlterWALMessageBody.ProtoReflect.Descriptor instead.
+func (*AlterWALMessageBody) Descriptor() ([]byte, []int) {
 	return file_messages_proto_rawDescGZIP(), []int{86}
 }
 
@@ -5916,20 +5916,20 @@ var file_messages_proto_rawDesc = []byte{
 	0x49, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x69, 0x64, 0x73, 0x18,
 	0x02, 0x20, 0x03, 0x28, 0x03, 0x52, 0x08, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x49, 0x64, 0x73, 0x22,
 	0x16, 0x0a, 0x14, 0x44, 0x72, 0x6f, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x4d, 0x65, 0x73, 0x73,
-	0x61, 0x67, 0x65, 0x42, 0x6f, 0x64, 0x79, 0x22, 0xc1, 0x01, 0x0a, 0x15, 0x53, 0x77, 0x69, 0x74,
-	0x63, 0x68, 0x4d, 0x51, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x48, 0x65, 0x61, 0x64, 0x65,
+	0x61, 0x67, 0x65, 0x42, 0x6f, 0x64, 0x79, 0x22, 0xc1, 0x01, 0x0a, 0x15, 0x41, 0x6c, 0x74, 0x65,
+	0x72, 0x57, 0x41, 0x4c, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x48, 0x65, 0x61, 0x64, 0x65,
 	0x72, 0x12, 0x1b, 0x0a, 0x09, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x6d, 0x71, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x4d, 0x71, 0x12, 0x50,
 	0x0a, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x38,
 	0x2e, 0x6d, 0x69, 0x6c, 0x76, 0x75, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x6d, 0x65,
-	0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x2e, 0x53, 0x77, 0x69, 0x74, 0x63, 0x68, 0x4d, 0x51, 0x4d,
+	0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x2e, 0x41, 0x6c, 0x74, 0x65, 0x72, 0x57, 0x41, 0x4c, 0x4d,
 	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x6e,
 	0x66, 0x69, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
 	0x1a, 0x39, 0x0a, 0x0b, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
 	0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65,
 	0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x15, 0x0a, 0x13, 0x53,
-	0x77, 0x69, 0x74, 0x63, 0x68, 0x4d, 0x51, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x42, 0x6f,
+	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x15, 0x0a, 0x13, 0x41,
+	0x6c, 0x74, 0x65, 0x72, 0x57, 0x41, 0x4c, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x42, 0x6f,
 	0x64, 0x79, 0x22, 0x67, 0x0a, 0x10, 0x43, 0x61, 0x63, 0x68, 0x65, 0x45, 0x78, 0x70, 0x69, 0x72,
 	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x53, 0x0a, 0x11, 0x63, 0x61, 0x63, 0x68, 0x65, 0x5f,
 	0x65, 0x78, 0x70, 0x69, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
@@ -6068,7 +6068,7 @@ var file_messages_proto_rawDesc = []byte{
 	0x10, 0x21, 0x12, 0x0f, 0x0a, 0x0b, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65,
 	0x78, 0x10, 0x22, 0x12, 0x0e, 0x0a, 0x0a, 0x41, 0x6c, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x64, 0x65,
 	0x78, 0x10, 0x23, 0x12, 0x0d, 0x0a, 0x09, 0x44, 0x72, 0x6f, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78,
-	0x10, 0x24, 0x12, 0x0c, 0x0a, 0x08, 0x53, 0x77, 0x69, 0x74, 0x63, 0x68, 0x4d, 0x51, 0x10, 0x25,
+	0x10, 0x24, 0x12, 0x0c, 0x0a, 0x08, 0x41, 0x6c, 0x74, 0x65, 0x72, 0x57, 0x41, 0x4c, 0x10, 0x25,
 	0x12, 0x19, 0x0a, 0x14, 0x41, 0x6c, 0x74, 0x65, 0x72, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61,
 	0x74, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x10, 0xa0, 0x06, 0x12, 0x0d, 0x0a, 0x08, 0x42,
 	0x65, 0x67, 0x69, 0x6e, 0x54, 0x78, 0x6e, 0x10, 0x84, 0x07, 0x12, 0x0e, 0x0a, 0x09, 0x43, 0x6f,
@@ -6203,8 +6203,8 @@ var file_messages_proto_goTypes = []interface{}{
 	(*AlterIndexMessageBody)(nil),             // 85: milvus.proto.messages.AlterIndexMessageBody
 	(*DropIndexMessageHeader)(nil),            // 86: milvus.proto.messages.DropIndexMessageHeader
 	(*DropIndexMessageBody)(nil),              // 87: milvus.proto.messages.DropIndexMessageBody
-	(*SwitchMQMessageHeader)(nil),             // 88: milvus.proto.messages.SwitchMQMessageHeader
-	(*SwitchMQMessageBody)(nil),               // 89: milvus.proto.messages.SwitchMQMessageBody
+	(*AlterWALMessageHeader)(nil),             // 88: milvus.proto.messages.AlterWALMessageHeader
+	(*AlterWALMessageBody)(nil),               // 89: milvus.proto.messages.AlterWALMessageBody
 	(*CacheExpirations)(nil),                  // 90: milvus.proto.messages.CacheExpirations
 	(*CacheExpiration)(nil),                   // 91: milvus.proto.messages.CacheExpiration
 	(*LegacyProxyCollectionMetaCache)(nil),    // 92: milvus.proto.messages.LegacyProxyCollectionMetaCache
@@ -6217,7 +6217,7 @@ var file_messages_proto_goTypes = []interface{}{
 	(*CipherHeader)(nil),                      // 99: milvus.proto.messages.CipherHeader
 	nil,                                       // 100: milvus.proto.messages.Message.PropertiesEntry
 	nil,                                       // 101: milvus.proto.messages.AlterResourceGroupMessageHeader.ResourceGroupConfigsEntry
-	nil,                                       // 102: milvus.proto.messages.SwitchMQMessageHeader.ConfigEntry
+	nil,                                       // 102: milvus.proto.messages.AlterWALMessageHeader.ConfigEntry
 	nil,                                       // 103: milvus.proto.messages.RMQMessageLayout.PropertiesEntry
 	(datapb.SegmentLevel)(0),                  // 104: milvus.proto.data.SegmentLevel
 	(*commonpb.ReplicateConfiguration)(nil),   // 105: milvus.proto.common.ReplicateConfiguration
@@ -6275,7 +6275,7 @@ var file_messages_proto_depIdxs = []int32{
 	101, // 34: milvus.proto.messages.AlterResourceGroupMessageHeader.resource_group_configs:type_name -> milvus.proto.messages.AlterResourceGroupMessageHeader.ResourceGroupConfigsEntry
 	117, // 35: milvus.proto.messages.CreateIndexMessageBody.field_index:type_name -> milvus.proto.index.FieldIndex
 	117, // 36: milvus.proto.messages.AlterIndexMessageBody.field_indexes:type_name -> milvus.proto.index.FieldIndex
-	102, // 37: milvus.proto.messages.SwitchMQMessageHeader.config:type_name -> milvus.proto.messages.SwitchMQMessageHeader.ConfigEntry
+	102, // 37: milvus.proto.messages.AlterWALMessageHeader.config:type_name -> milvus.proto.messages.AlterWALMessageHeader.ConfigEntry
 	91,  // 38: milvus.proto.messages.CacheExpirations.cache_expirations:type_name -> milvus.proto.messages.CacheExpiration
 	92,  // 39: milvus.proto.messages.CacheExpiration.legacy_proxy_collection_meta_cache:type_name -> milvus.proto.messages.LegacyProxyCollectionMetaCache
 	118, // 40: milvus.proto.messages.LegacyProxyCollectionMetaCache.msg_type:type_name -> milvus.proto.common.MsgType
@@ -7319,7 +7319,7 @@ func file_messages_proto_init() {
 			}
 		}
 		file_messages_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SwitchMQMessageHeader); i {
+			switch v := v.(*AlterWALMessageHeader); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7331,7 +7331,7 @@ func file_messages_proto_init() {
 			}
 		}
 		file_messages_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SwitchMQMessageBody); i {
+			switch v := v.(*AlterWALMessageBody); i {
 			case 0:
 				return &v.state
 			case 1:

@@ -441,7 +441,7 @@
                 "BodyType": "messagespb.SwitchMQMessageBody"
             },
             "MessageTypeWithVersion": {
-                "MessageType": "MessageTypeSwitchMQ",
+                "MessageType": "MessageTypeAlterWAL",
                 "Version": 1
             }
         }

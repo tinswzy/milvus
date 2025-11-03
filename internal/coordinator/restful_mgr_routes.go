@@ -1239,12 +1239,12 @@ func (s *mixCoordImpl) broadcastMQSwitchMessage(ctx context.Context, targetMQTyp
 
 	// Create MQ Switch broadcast message
 	// Broadcast to all pchannels directly, no need to handle control channel specially
-	broadcastMsg, err := message.NewSwitchMQMessageBuilderV1().
-		WithHeader(&message.SwitchMQMessageHeader{
+	broadcastMsg, err := message.NewAlterWALMessageBuilderV1().
+		WithHeader(&message.AlterWALMessageHeader{
 			TargetMq: targetMQType,
 			Config:   properties,
 		}).
-		WithBody(&message.SwitchMQMessageBody{}).
+		WithBody(&message.AlterWALMessageBody{}).
 		WithBroadcast(pchannels).
 		BuildBroadcast()
 	if err != nil {

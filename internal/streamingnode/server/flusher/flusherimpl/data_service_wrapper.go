@@ -45,7 +45,7 @@ func (ds *dataSyncServiceWrapper) Start() {
 
 // HandleMessage handles the incoming message.
 func (ds *dataSyncServiceWrapper) HandleMessage(ctx context.Context, msg message.ImmutableMessage) error {
-	if msg.MessageType() == message.MessageTypeSwitchMQ {
+	if msg.MessageType() == message.MessageTypeAlterWAL {
 		ds.handler.Logger.Info("SWITCH_MQ_STEPS: data sync handle switch msg", zap.String("channel", ds.channelName), zap.Uint64("timetick", msg.TimeTick()))
 	}
 	// TODO:COMMENT_TO_REMOVE 单msg pack去重

@@ -37,7 +37,7 @@ var exclusiveRequiredMessageType = map[MessageType]struct{}{
 	MessageTypeSchemaChange:         {},
 	MessageTypeAlterReplicateConfig: {},
 	MessageTypeAlterCollection:      {},
-	MessageTypeSwitchMQ:             {}, // TODO SN端防止dml的并发，锁住日志顺序。和broadcast的锁不一样，broadcast的是在streamingNode发生。
+	MessageTypeAlterWAL:             {}, // TODO SN端防止dml的并发，锁住日志顺序。和broadcast的锁不一样，broadcast的是在streamingNode发生。
 }
 
 // mustAsSpecializedMutableMessage converts a MutableMessage to a specialized MutableMessage.
