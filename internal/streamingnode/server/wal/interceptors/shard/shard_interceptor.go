@@ -55,6 +55,8 @@ func (impl *shardInterceptor) Name() string {
 
 // DoAppend assigns segment for every partition in the message.
 func (impl *shardInterceptor) DoAppend(ctx context.Context, msg message.MutableMessage, appendOp interceptors.Append) (msgID message.MessageID, err error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "shardInterceptor-DoAppend")
+	defer sp.End()
 	op, ok := impl.ops[msg.MessageType()]
 	if ok && !funcutil.IsControlChannel(msg.VChannel()) {
 		// If the message type is registered in the interceptor, use the registered operation.
