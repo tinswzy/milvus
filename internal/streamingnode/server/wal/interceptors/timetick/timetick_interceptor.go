@@ -2,6 +2,8 @@ package timetick
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -35,6 +37,8 @@ func (impl *timeTickAppendInterceptor) Name() string {
 
 // Do implements AppendInterceptor.
 func (impl *timeTickAppendInterceptor) DoAppend(ctx context.Context, msg message.MutableMessage, append interceptors.Append) (msgID message.MessageID, err error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "timeTickAppendInterceptor-DoAppend")
+	defer sp.End()
 	cm := impl.operator.MVCCManager()
 	defer func() {
 		if err == nil {
@@ -61,7 +65,7 @@ func (impl *timeTickAppendInterceptor) DoAppend(ctx context.Context, msg message
 
 		// Assign timestamp to message and call the append method.
 		msg = msg.
-			WithTimeTick(acker.Timestamp()).                  // message assigned with these timetick.
+			WithTimeTick(acker.Timestamp()). // message assigned with these timetick.
 			WithLastConfirmed(acker.LastConfirmedMessageID()) // start consuming from these message id, the message which timetick greater than current timetick will never be lost.
 
 		defer func() {

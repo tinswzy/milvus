@@ -1,6 +1,10 @@
 package producer
 
 import (
+	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"io"
 	"sync"
 
@@ -169,8 +173,25 @@ func (p *ProduceServer) recvLoop() (err error) {
 	}
 }
 
+// ExtractFromMap 从map中提取trace context
+func ExtractFromMap(ctx context.Context, traceMap map[string]string) context.Context {
+	if traceMap == nil || len(traceMap) == 0 {
+		return ctx
+	}
+
+	carrier := propagation.MapCarrier{}
+	for k, v := range traceMap {
+		carrier.Set(k, v)
+	}
+
+	return otel.GetTextMapPropagator().Extract(ctx, carrier)
+}
+
 // handleProduce handles the produce message request.
 func (p *ProduceServer) handleProduce(req *streamingpb.ProduceMessageRequest) {
+	requestCtx := ExtractFromMap(context.Background(), req.TraceContext)
+	requestCtx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(requestCtx, "ProduceServer-handleProduce")
+	defer sp.End()
 	// Stop handling if the wal is not available any more.
 	// The counter of  appendWG will never increased.
 	if !p.wal.IsAvailable() {
@@ -192,7 +213,7 @@ func (p *ProduceServer) handleProduce(req *streamingpb.ProduceMessageRequest) {
 
 	// Append message to wal.
 	// Concurrent append request can be executed concurrently.
-	p.wal.AppendAsync(p.produceServer.Context(), msg, func(appendResult *wal.AppendResult, err error) {
+	p.wal.AppendAsync(requestCtx, msg, func(appendResult *wal.AppendResult, err error) {
 		defer func() {
 			metricsGuard.Finish(err)
 			p.appendWG.Done()

@@ -2,6 +2,8 @@ package shard
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
@@ -139,6 +141,8 @@ func (impl *shardInterceptor) handleDropPartition(ctx context.Context, msg messa
 
 // handleInsertMessage handles the insert message.
 func (impl *shardInterceptor) handleInsertMessage(ctx context.Context, msg message.MutableMessage, appendOp interceptors.Append) (message.MessageID, error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "shardInterceptor-handleInsertMessage")
+	defer sp.End()
 	insertMsg := message.MustAsMutableInsertMessageV1(msg)
 	// Assign segment for insert message.
 	// !!! Current implementation a insert message only has one parition, but we need to merge the message for partition-key in future.
@@ -199,6 +203,8 @@ func (impl *shardInterceptor) handleInsertMessage(ctx context.Context, msg messa
 
 // handleDeleteMessage handles the delete message.
 func (impl *shardInterceptor) handleDeleteMessage(ctx context.Context, msg message.MutableMessage, appendOp interceptors.Append) (message.MessageID, error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "shardInterceptor-handleDeleteMessage")
+	defer sp.End()
 	deleteMessage := message.MustAsMutableDeleteMessageV1(msg)
 	header := deleteMessage.Header()
 	if err := impl.shardManager.CheckIfCollectionExists(header.GetCollectionId()); err != nil {

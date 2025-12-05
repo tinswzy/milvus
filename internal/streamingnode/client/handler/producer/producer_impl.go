@@ -3,6 +3,7 @@ package producer
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"io"
 	"sync"
 
@@ -118,6 +119,8 @@ type produceResponse struct {
 
 // Append sends the produce message to server.
 func (p *producerImpl) Append(ctx context.Context, msg message.MutableMessage) (*types.AppendResult, error) {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "producerClient-Append")
+	defer sp.End()
 	if !p.lifetime.Add(typeutil.LifetimeStateWorking) {
 		return nil, status.NewOnShutdownError("producer client is shutting down")
 	}
@@ -255,7 +258,7 @@ func (p *producerImpl) sendLoop() (err error) {
 			// Store the request to pending request map.
 			p.pendingRequests.Store(requestID, req)
 			// Send the produce message to server.
-			if err := p.grpcStreamClient.SendProduceMessage(requestID, req.msg); err != nil {
+			if err := p.grpcStreamClient.SendProduceMessage(requestID, req.msg, req.ctx); err != nil {
 				// If send failed, remove the request from pending request map and return error to client.
 				p.notifyRequest(requestID, produceResponse{
 					err: err,

@@ -2,6 +2,8 @@ package lock
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 	"sync"
 
 	"github.com/milvus-io/milvus/internal/streamingnode/server/wal/interceptors"
@@ -19,6 +21,8 @@ type lockAppendInterceptor struct {
 }
 
 func (r *lockAppendInterceptor) DoAppend(ctx context.Context, msg message.MutableMessage, append interceptors.Append) (message.MessageID, error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "lockAppendInterceptor-DoAppend")
+	defer sp.End()
 	g := r.acquireLockGuard(ctx, msg)
 	defer g()
 
