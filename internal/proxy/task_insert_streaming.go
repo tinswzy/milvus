@@ -87,7 +87,9 @@ func repackInsertDataForStreamingService(
 ) ([]message.MutableMessage, error) {
 	messages := make([]message.MutableMessage, 0)
 
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，repackInsert中，先根据insertMsgs的pk 分配vChannels
 	channel2RowOffsets := assignChannelsByPK(result.IDs, channelNames, insertMsg)
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，repackInsert中，根据insertMsgs partitionName 获取partitionID，并设置到msg中
 	for channel, rowOffsets := range channel2RowOffsets {
 		partitionName := insertMsg.PartitionName
 		partitionID, err := globalMetaCache.GetPartitionID(ctx, insertMsg.GetDbName(), insertMsg.CollectionName, partitionName)
@@ -95,6 +97,7 @@ func repackInsertDataForStreamingService(
 			return nil, err
 		}
 		// segment id is assigned at streaming node.
+		// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，repackInsert中，还会根据大小拆包、根据partition拆包
 		msgs, err := genInsertMsgsByPartition(ctx, 0, partitionID, partitionName, rowOffsets, channel, insertMsg)
 		if err != nil {
 			return nil, err

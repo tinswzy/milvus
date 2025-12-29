@@ -17,6 +17,7 @@ import (
 )
 
 func (ut *upsertTask) Execute(ctx context.Context) error {
+	// TODO ENHANCE-TRACE Upsert Execute开始正式执行
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Upsert-Execute")
 	defer sp.End()
 	log := log.Ctx(ctx).With(zap.String("collectionName", ut.req.CollectionName))
@@ -26,11 +27,13 @@ func (ut *upsertTask) Execute(ctx context.Context) error {
 		ez = hookutil.GetEzByCollProperties(ut.schema.GetProperties(), ut.collectionID).AsMessageConfig()
 	}
 
+	// TODO ENHANCE-TRACE Upsert Execute 打包insert消息
 	insertMsgs, err := ut.packInsertMessage(ctx, ez)
 	if err != nil {
 		log.Warn("pack insert message failed", zap.Error(err))
 		return err
 	}
+	// TODO ENHANCE-TRACE Upsert Execute 打包delete消息
 	deleteMsgs, err := ut.packDeleteMessage(ctx, ez)
 	if err != nil {
 		log.Warn("pack delete message failed", zap.Error(err))
@@ -38,6 +41,7 @@ func (ut *upsertTask) Execute(ctx context.Context) error {
 	}
 
 	messages := append(insertMsgs, deleteMsgs...)
+	// TODO ENHANCE-TRACE Upsert Execute 调用SN WAL append请求
 	resp := streaming.WAL().AppendMessages(ctx, messages...)
 	if err := resp.UnwrapFirstError(); err != nil {
 		log.Warn("append messages to wal failed", zap.Error(err))
@@ -52,16 +56,19 @@ func (ut *upsertTask) packInsertMessage(ctx context.Context, ez *message.CipherC
 	tr := timerecord.NewTimeRecorder(fmt.Sprintf("proxy insertExecute upsert %d", ut.ID()))
 	defer tr.Elapse("insert execute done when insertExecute")
 
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，根据collectionName获得collectionID
 	collectionName := ut.upsertMsg.InsertMsg.CollectionName
 	collID, err := globalMetaCache.GetCollectionID(ctx, ut.req.GetDbName(), collectionName)
 	if err != nil {
 		return nil, err
 	}
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，设置collID给这个insertMsg
 	ut.upsertMsg.InsertMsg.CollectionID = collID
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", collID))
 	getCacheDur := tr.RecordSpan()
 
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，根据collID获得vChannelNames
 	getMsgStreamDur := tr.RecordSpan()
 	channelNames, err := ut.chMgr.getVChannels(collID)
 	if err != nil {
@@ -82,6 +89,7 @@ func (ut *upsertTask) packInsertMessage(ctx context.Context, ez *message.CipherC
 
 	// start to repack insert data
 	var msgs []message.MutableMessage
+	// TODO ENHANCE-TRACE Upsert Execute packInsertMsg中，根据vChannelNames 进行repack insertMsgs为多个分组，按照vChannelNames分好租
 	if ut.partitionKeys == nil {
 		msgs, err = repackInsertDataForStreamingService(ut.TraceCtx(), channelNames, ut.upsertMsg.InsertMsg, ut.result, ez)
 	} else {

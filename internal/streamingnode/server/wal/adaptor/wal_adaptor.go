@@ -2,6 +2,7 @@ package adaptor
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -135,6 +136,8 @@ func (w *walAdaptorImpl) GetReplicateCheckpoint() (*utility.ReplicateCheckpoint,
 
 // Append writes a record to the log.
 func (w *walAdaptorImpl) Append(ctx context.Context, msg message.MutableMessage) (*wal.AppendResult, error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "WALAdaptor-Append")
+	defer sp.End()
 	if !w.lifetime.Add(typeutil.LifetimeStateWorking) {
 		return nil, status.NewOnShutdownError("wal is on shutdown")
 	}
@@ -218,6 +221,8 @@ func (w *walAdaptorImpl) Append(ctx context.Context, msg message.MutableMessage)
 
 // retryAppendWhenRecoverableError retries the append operation when recoverable error occurs.
 func (w *walAdaptorImpl) retryAppendWhenRecoverableError(ctx context.Context, msg message.MutableMessage) (message.MessageID, error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "WALAdaptor-retryAppendWhenRecoverableError")
+	defer sp.End()
 	backoff := backoff.NewExponentialBackOff()
 	backoff.InitialInterval = 10 * time.Millisecond
 	backoff.MaxInterval = 5 * time.Second
@@ -249,6 +254,8 @@ func (w *walAdaptorImpl) retryAppendWhenRecoverableError(ctx context.Context, ms
 
 // AppendAsync writes a record to the log asynchronously.
 func (w *walAdaptorImpl) AppendAsync(ctx context.Context, msg message.MutableMessage, cb func(*wal.AppendResult, error)) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "WALAdaptor-AppendAsync")
+	defer sp.End()
 	if !w.lifetime.Add(typeutil.LifetimeStateWorking) {
 		cb(nil, status.NewOnShutdownError("wal is on shutdown"))
 		return

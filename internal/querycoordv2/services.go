@@ -19,6 +19,7 @@ package querycoordv2
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"sync"
 
 	"github.com/cockroachdb/errors"
@@ -195,6 +196,8 @@ func (s *Server) ShowLoadPartitions(ctx context.Context, req *querypb.ShowPartit
 }
 
 func (s *Server) LoadCollection(ctx context.Context, req *querypb.LoadCollectionRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-LoadCollection")
+	defer sp.End()
 	logger := log.Ctx(ctx).With(
 		zap.Int64("dbID", req.GetDbID()),
 		zap.Int64("collectionID", req.GetCollectionID()),
@@ -244,6 +247,8 @@ func (s *Server) LoadCollection(ctx context.Context, req *querypb.LoadCollection
 }
 
 func (s *Server) ReleaseCollection(ctx context.Context, req *querypb.ReleaseCollectionRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-ReleaseCollection")
+	defer sp.End()
 	logger := log.Ctx(ctx).With(zap.Int64("collectionID", req.GetCollectionID()))
 
 	logger.Info("release collection request received")
@@ -273,6 +278,8 @@ func (s *Server) ReleaseCollection(ctx context.Context, req *querypb.ReleaseColl
 }
 
 func (s *Server) LoadPartitions(ctx context.Context, req *querypb.LoadPartitionsRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-LoadPartitions")
+	defer sp.End()
 	logger := log.Ctx(ctx).With(
 		zap.Int64("dbID", req.GetDbID()),
 		zap.Int64("collectionID", req.GetCollectionID()),
@@ -321,6 +328,8 @@ func (s *Server) LoadPartitions(ctx context.Context, req *querypb.LoadPartitions
 }
 
 func (s *Server) ReleasePartitions(ctx context.Context, req *querypb.ReleasePartitionsRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-ReleasePartitions")
+	defer sp.End()
 	logger := log.Ctx(ctx).With(
 		zap.Int64("collectionID", req.GetCollectionID()),
 		zap.Int64s("partitionIDs", req.GetPartitionIDs()),
@@ -428,6 +437,8 @@ func (s *Server) GetPartitionStates(ctx context.Context, req *querypb.GetPartiti
 }
 
 func (s *Server) GetLoadSegmentInfo(ctx context.Context, req *querypb.GetSegmentInfoRequest) (*querypb.GetSegmentInfoResponse, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-GetLoadSegmentInfo")
+	defer sp.End()
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", req.GetCollectionID()),
 	)
@@ -592,6 +603,8 @@ func (s *Server) isStoppingNode(ctx context.Context, nodeID int64) error {
 }
 
 func (s *Server) LoadBalance(ctx context.Context, req *querypb.LoadBalanceRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.QueryCoordRole).Start(ctx, "Server-LoadBalance")
+	defer sp.End()
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", req.GetCollectionID()),
 	)
