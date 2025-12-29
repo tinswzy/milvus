@@ -2,6 +2,8 @@ package redo
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 
 	"github.com/cockroachdb/errors"
 
@@ -26,6 +28,8 @@ type redoAppendInterceptor struct {
 
 // TODO: should be removed after lock-based before timetick is applied.
 func (r *redoAppendInterceptor) DoAppend(ctx context.Context, msg message.MutableMessage, append interceptors.Append) (msgID message.MessageID, err error) {
+	ctx, sp := otel.Tracer(typeutil.StreamingNodeRole).Start(ctx, "redoAppendInterceptor-DoAppend")
+	defer sp.End()
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

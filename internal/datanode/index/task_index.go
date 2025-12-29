@@ -19,6 +19,8 @@ package index
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 	"strconv"
 	"strings"
 	"time"
@@ -226,6 +228,8 @@ func (it *indexBuildTask) PreExecute(ctx context.Context) error {
 }
 
 func (it *indexBuildTask) Execute(ctx context.Context) error {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "indexBuildTask-Execute")
+	defer sp.End()
 	log := log.Ctx(ctx).With(
 		zap.String("clusterID", it.req.GetClusterID()),
 		zap.Int64("buildID", it.req.GetBuildID()),

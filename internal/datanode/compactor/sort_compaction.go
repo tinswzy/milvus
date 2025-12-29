@@ -335,7 +335,7 @@ func (t *sortCompactionTask) Compact() (*datapb.CompactionPlanResult, error) {
 	if !funcutil.CheckCtxValid(t.ctx) {
 		return nil, t.ctx.Err()
 	}
-	ctx, span := otel.Tracer(typeutil.DataNodeRole).Start(t.ctx, fmt.Sprintf("MixCompact-%d", t.GetPlanID()))
+	ctx, span := otel.Tracer(typeutil.DataNodeRole).Start(t.ctx, fmt.Sprintf("Sort-MixCompact-%d", t.GetPlanID()))
 	defer span.End()
 	if err := t.preCompact(); err != nil {
 		log.Warn("failed to preCompact", zap.Error(err))

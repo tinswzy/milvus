@@ -19,6 +19,9 @@ package syncmgr
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"time"
 
 	"github.com/samber/lo"
@@ -113,6 +116,8 @@ func (t *SyncTask) HandleError(err error) {
 }
 
 func (t *SyncTask) Run(ctx context.Context) (err error) {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "flush-SyncTask-Run")
+	defer sp.End()
 	t.tr = timerecord.NewTimeRecorder("syncTask")
 
 	log := t.getLogger()
@@ -164,8 +169,14 @@ func (t *SyncTask) Run(ctx context.Context) (err error) {
 		}
 		return count
 	}
+	deleteCount := getDataCount(t.deltaBinlog)
+	sp.AddEvent("write data", trace.WithAttributes(
+		attribute.Int64("insert_count", t.batchRows),
+		attribute.Int64("delete_count", deleteCount),
+		attribute.Int64("size", t.flushedSize),
+	))
 	metrics.DataNodeWriteDataCount.WithLabelValues(fmt.Sprint(paramtable.GetNodeID()), t.dataSource, metrics.InsertLabel, fmt.Sprint(t.collectionID)).Add(float64(t.batchRows))
-	metrics.DataNodeWriteDataCount.WithLabelValues(fmt.Sprint(paramtable.GetNodeID()), t.dataSource, metrics.DeleteLabel, fmt.Sprint(t.collectionID)).Add(float64(getDataCount(t.deltaBinlog)))
+	metrics.DataNodeWriteDataCount.WithLabelValues(fmt.Sprint(paramtable.GetNodeID()), t.dataSource, metrics.DeleteLabel, fmt.Sprint(t.collectionID)).Add(float64(deleteCount))
 	metrics.DataNodeFlushedSize.WithLabelValues(fmt.Sprint(paramtable.GetNodeID()), t.dataSource, t.level.String()).Add(float64(t.flushedSize))
 
 	metrics.DataNodeFlushedRows.WithLabelValues(fmt.Sprint(paramtable.GetNodeID()), t.dataSource).Add(float64(t.batchRows))

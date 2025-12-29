@@ -849,12 +849,14 @@ func GenNullableFieldData(field *schemapb.FieldSchema, upsertIDSize int) (*schem
 func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Upsert-insertPreExecute")
 	defer sp.End()
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 校验collectionName合法性
 	collectionName := it.upsertMsg.InsertMsg.CollectionName
 	if err := validateCollectionName(collectionName); err != nil {
 		log.Ctx(ctx).Error("valid collection name failed", zap.String("collectionName", collectionName), zap.Error(err))
 		return err
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 获取bm25的fields
 	bm25Fields := typeutil.NewSet[string](GetBM25FunctionOutputFields(it.schema.CollectionSchema)...)
 	if it.req.PartialUpdate {
 		// remove the old bm25 fields
@@ -868,6 +870,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 		it.upsertMsg.InsertMsg.FieldsData = ret
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 统计插入的行数
 	rowNums := uint32(it.upsertMsg.InsertMsg.NRows())
 	// set upsertTask.insertRequest.rowIDs
 	tr := timerecord.NewTimeRecorder("applyPK")
@@ -883,6 +886,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 		return allocateErr
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 对insertMsgs 各个msg赋予 rowID
 	it.upsertMsg.InsertMsg.RowIDs = make([]UniqueID, rowNums)
 	it.rowIDs = make([]UniqueID, rowNums)
 	for i := rowIDBegin; i < rowIDEnd; i++ {
@@ -890,6 +894,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 		it.upsertMsg.InsertMsg.RowIDs[offset] = i
 		it.rowIDs[offset] = i
 	}
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 对insertMsgs 各个msg赋予 timestamp
 	// set upsertTask.insertRequest.timeStamps
 	rowNum := it.upsertMsg.InsertMsg.NRows()
 	it.upsertMsg.InsertMsg.Timestamps = make([]uint64, rowNum)
@@ -905,6 +910,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 	}
 	it.result.SuccIndex = sliceIndex
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 如果启用了动态列，先检查coll是否有动态列json定义，没有就定义一个json列用于当做 动态列存放内容。
 	if it.schema.EnableDynamicField {
 		err := checkDynamicFieldData(it.schema.CollectionSchema, it.upsertMsg.InsertMsg)
 		if err != nil {
@@ -912,6 +918,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 		}
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 检查是否启动命名空间，如果启用的话，自动添加一个命名空间的field字段值
 	if Params.CommonCfg.EnableNamespace.GetAsBool() {
 		err := addNamespaceData(it.schema.CollectionSchema, it.upsertMsg.InsertMsg)
 		if err != nil {
@@ -919,6 +926,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 		}
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 对insertMsgs 检查并平铺struct field数据，例如structArray字段最后会拆成多个字段
 	if err := checkAndFlattenStructFieldData(it.schema.CollectionSchema, it.upsertMsg.InsertMsg); err != nil {
 		return err
 	}
@@ -928,6 +936,7 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 	// use the passed pk as new pk when autoID == false
 	// automatic generate pk as new pk wehen autoID == true
 	var err error
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 对insertMsgs 必须包含pk field
 	it.result.IDs, it.oldIDs, err = checkUpsertPrimaryFieldData(allFields, it.schema.CollectionSchema, it.upsertMsg.InsertMsg)
 	log := log.Ctx(ctx).With(zap.String("collectionName", it.upsertMsg.InsertMsg.CollectionName))
 	if err != nil {
@@ -944,17 +953,20 @@ func (it *upsertTask) insertPreExecute(ctx context.Context) error {
 	}
 
 	// Validate and set field ID to insert field data
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 检查insert Msgs的 fieldData满足要求
 	err = validateFieldDataColumns(it.upsertMsg.InsertMsg.GetFieldsData(), it.schema)
 	if err != nil {
 		log.Warn("validate field data columns failed when upsert", zap.Error(err))
 		return merr.WrapErrAsInputErrorWhen(err, merr.ErrParameterInvalid)
 	}
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 对insertMsgs fields设置一些properties
 	err = fillFieldPropertiesOnly(it.upsertMsg.InsertMsg.GetFieldsData(), it.schema)
 	if err != nil {
 		log.Warn("fill field properties failed when upsert", zap.Error(err))
 		return merr.WrapErrAsInputErrorWhen(err, merr.ErrParameterInvalid)
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中insertPreExecute 如果是partitionKey模式，还需从InsertMsgs获取对应 partitionKey的数据作为partition fields准备好
 	if it.partitionKeyMode {
 		fieldSchema, _ := typeutil.GetPartitionKeyFieldSchema(it.schema.CollectionSchema)
 		it.partitionKeys, err = getPartitionKeyFieldData(fieldSchema, it.upsertMsg.InsertMsg)
@@ -987,6 +999,7 @@ func (it *upsertTask) deletePreExecute(ctx context.Context) error {
 	log := log.Ctx(ctx).With(
 		zap.String("collectionName", collName))
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中的deletePreExecute 校验 rowID必须存在
 	if it.upsertMsg.DeleteMsg.PrimaryKeys == nil {
 		// if primary keys are not set by queryPreExecute, use oldIDs to delete all given records
 		it.upsertMsg.DeleteMsg.PrimaryKeys = it.oldIDs
@@ -996,17 +1009,20 @@ func (it *upsertTask) deletePreExecute(ctx context.Context) error {
 		return nil
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中的deletePreExecute 验证collectionName合法性
 	if err := validateCollectionName(collName); err != nil {
 		log.Info("Invalid collectionName", zap.Error(err))
 		return err
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 中的deletePreExecute如果是partitionKey模式，那么指定DeleteMsg的partitionID。如果指定partitionKey，那么就是所有partition
 	if it.partitionKeyMode {
 		// multi entities with same pk and diff partition keys may be hashed to multi physical partitions
 		// if deleteMsg.partitionID = common.InvalidPartition,
 		// all segments with this pk under the collection will have the delete record
 		it.upsertMsg.DeleteMsg.PartitionID = common.AllPartitionsID
 	} else {
+		// TODO ENHANCE-TRACE Upsert PreExecute 中的deletePreExecute 如果是有具体的partitionName，那么就根据partitionName得到partitionID并赋值给这个 deleteMsg
 		// partition name could be defaultPartitionName or name specified by sdk
 		partName := it.upsertMsg.DeleteMsg.PartitionName
 		if err := validatePartitionTag(partName, true); err != nil {
@@ -1030,6 +1046,7 @@ func (it *upsertTask) deletePreExecute(ctx context.Context) error {
 }
 
 func (it *upsertTask) PreExecute(ctx context.Context) error {
+	// TODO ENHANCE-TRACE Upsert PreExecute 开始准备一些 collectionID、shard信息等，插入所需的内容
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Upsert-PreExecute")
 	defer sp.End()
 
@@ -1052,6 +1069,7 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 	}
 	it.collectionID = collID
 
+	// TODO ENHANCE-TRACE Upsert PreExecute根据 collectionID获得 CollectionInfo{ partitionInfos, vchannels,pchannels }
 	colInfo, err := globalMetaCache.GetCollectionInfo(ctx, it.req.GetDbName(), collectionName, collID)
 	if err != nil {
 		log.Warn("fail to get collection info", zap.Error(err))
@@ -1068,6 +1086,7 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		}
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 根据collectionName查询得到 collectionSchema{ fieldSchemas }
 	schema, err := globalMetaCache.GetCollectionSchema(ctx, it.req.GetDbName(), collectionName)
 	if err != nil {
 		log.Warn("Failed to get collection schema",
@@ -1082,6 +1101,7 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute看看是否有 partitionKey的field
 	it.partitionKeyMode, err = isPartitionKeyMode(ctx, it.req.GetDbName(), collectionName)
 	if err != nil {
 		log.Warn("check partition key mode failed",
@@ -1089,11 +1109,13 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 			zap.Error(err))
 		return err
 	}
+	// TODO ENHANCE-TRACE Upsert PreExecute 指定partitionKey分区方式
 	if it.partitionKeyMode {
 		if len(it.req.GetPartitionName()) > 0 {
 			return errors.New("not support manually specifying the partition names if partition key mode is used")
 		}
 	} else {
+		// TODO ENHANCE-TRACE Upsert PreExecute 默认自动Partition分区方式, 没有的话指定一个default 默认分区
 		// set default partition name if not use partition key
 		// insert to _default partition
 		partitionTag := it.req.GetPartitionName()
@@ -1107,6 +1129,7 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		}
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute找到 primaryKey field Schema
 	// check for duplicate primary keys in the same batch
 	primaryFieldSchema, err := typeutil.GetPrimaryFieldSchema(schema.CollectionSchema)
 	if err != nil {
@@ -1122,7 +1145,9 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		return merr.WrapErrParameterInvalidMsg("duplicate primary keys are not allowed in the same batch")
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute构造一个 完整的UpsertMsg
 	it.upsertMsg = &msgstream.UpsertMsg{
+		// TODO ENHANCE-TRACE Upsert PreExecute这个UpsertMsg包含一个 InsertMsg
 		InsertMsg: &msgstream.InsertMsg{
 			InsertRequest: &msgpb.InsertRequest{
 				Base: commonpbutil.NewMsgBase(
@@ -1139,6 +1164,7 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 				Namespace:      it.req.Namespace,
 			},
 		},
+		// TODO ENHANCE-TRACE Upsert PreExecute这个UpsertMsg包含一个 DeleteMsg
 		DeleteMsg: &msgstream.DeleteMsg{
 			DeleteRequest: &msgpb.DeleteRequest{
 				Base: commonpbutil.NewMsgBase(
@@ -1159,10 +1185,12 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		return merr.WrapErrParameterInvalid("invalid num_rows", fmt.Sprint(it.req.NumRows), "num_rows should be greater than 0")
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 如果是func field，那么还要更新下UpsertMsg
 	if err := genFunctionFields(ctx, it.upsertMsg.InsertMsg, it.schema, it.req.GetPartialUpdate()); err != nil {
 		return err
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 如果是partialUpdate，那么还要更新下UpsertMsg
 	if it.req.GetPartialUpdate() {
 		err = it.queryPreExecute(ctx)
 		if err != nil {
@@ -1175,12 +1203,14 @@ func (it *upsertTask) PreExecute(ctx context.Context) error {
 		it.upsertMsg.DeleteMsg.NumRows = int64(typeutil.GetSizeOfIDs(it.deletePKs))
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 先要进行insert PreExecute，主要是对insert操作的preExecute所需的准备
 	err = it.insertPreExecute(ctx)
 	if err != nil {
 		log.Warn("Fail to insertPreExecute", zap.Error(err))
 		return err
 	}
 
+	// TODO ENHANCE-TRACE Upsert PreExecute 先要进行delete PreExecute，主要是对delete操作的preExecute所需的准备
 	err = it.deletePreExecute(ctx)
 	if err != nil {
 		log.Warn("Fail to deletePreExecute", zap.Error(err))

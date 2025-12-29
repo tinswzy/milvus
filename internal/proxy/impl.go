@@ -2754,6 +2754,7 @@ func (node *Proxy) Delete(ctx context.Context, request *milvuspb.DeleteRequest) 
 
 // Upsert upsert records into collection.
 func (node *Proxy) Upsert(ctx context.Context, request *milvuspb.UpsertRequest) (*milvuspb.MutationResult, error) {
+	// TODO ENHANCE-TRACE Proxy接收到upsert请求
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Upsert")
 	defer sp.End()
 
@@ -2810,6 +2811,7 @@ func (node *Proxy) Upsert(ctx context.Context, request *milvuspb.UpsertRequest) 
 		zap.Int("len(FieldsData)", len(request.FieldsData)),
 		zap.Int("len(HashKeys)", len(request.HashKeys)))
 
+	// TODO ENHANCE-TRACE Proxy构造Upsert Task 放入执行队列
 	if err := node.sched.dmQueue.Enqueue(it); err != nil {
 		log.Info("Failed to enqueue upsert task",
 			zap.Error(err))
@@ -2822,6 +2824,7 @@ func (node *Proxy) Upsert(ctx context.Context, request *milvuspb.UpsertRequest) 
 		zap.Uint64("BeginTS", it.BeginTs()),
 		zap.Uint64("EndTS", it.EndTs()))
 
+	// TODO ENHANCE-TRACE Proxy等待Upsert Task执行完成
 	if err := it.WaitToFinish(); err != nil {
 		log.Info("Failed to execute insert task in task scheduler",
 			zap.Error(err))

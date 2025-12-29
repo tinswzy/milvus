@@ -22,6 +22,7 @@ package datanode
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -182,6 +183,8 @@ func (node *DataNode) GetMetrics(ctx context.Context, req *milvuspb.GetMetricsRe
 // CompactionV2 handles compaction request from DataCoord
 // returns status as long as compaction task enqueued or invalid
 func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPlan) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "DataNode-CompactionV2")
+	defer sp.End()
 	log := log.Ctx(ctx).With(zap.Int64("planID", req.GetPlanID()))
 	if err := merr.CheckHealthy(node.GetStateCode()); err != nil {
 		log.Warn("DataNode.Compaction failed", zap.Int64("nodeId", node.GetNodeID()), zap.Error(err))
@@ -692,6 +695,8 @@ func (node *DataNode) DropCompactionPlan(ctx context.Context, req *datapb.DropCo
 
 // CreateTask creates different types of tasks based on task type
 func (node *DataNode) CreateTask(ctx context.Context, request *workerpb.CreateTaskRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "DataNode-CreateTask")
+	defer sp.End()
 	log.Ctx(ctx).Info("CreateTask received", zap.Any("properties", request.GetProperties()))
 	if err := merr.CheckHealthy(node.GetStateCode()); err != nil {
 		return merr.Status(err), nil

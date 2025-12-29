@@ -19,6 +19,8 @@ package index
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"go.opentelemetry.io/otel"
 	"time"
 
 	"go.uber.org/zap"
@@ -91,6 +93,8 @@ func (at *analyzeTask) PreExecute(ctx context.Context) error {
 }
 
 func (at *analyzeTask) Execute(ctx context.Context) error {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "analyzeTask-Execute")
+	defer sp.End()
 	var err error
 
 	log := log.Ctx(ctx).With(zap.String("clusterID", at.req.GetClusterID()),

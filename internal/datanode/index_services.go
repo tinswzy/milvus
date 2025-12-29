@@ -19,6 +19,7 @@ package datanode
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/tracer"
 	"strconv"
 
 	"github.com/cockroachdb/errors"
@@ -260,6 +261,8 @@ func (node *DataNode) CreateJobV2(ctx context.Context, req *workerpb.CreateJobV2
 }
 
 func (node *DataNode) createIndexTask(ctx context.Context, req *workerpb.CreateJobRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "DataNode-createIndexTask")
+	defer sp.End()
 	log.Ctx(ctx).Info("DataNode building index ...",
 		zap.String("clusterID", req.GetClusterID()),
 		zap.Int64("taskID", req.GetBuildID()),
@@ -287,7 +290,7 @@ func (node *DataNode) createIndexTask(ctx context.Context, req *workerpb.CreateJ
 		log.Ctx(ctx).Warn("receive index task with invalid slot, set to 64", zap.Int64("taskSlot", req.GetTaskSlot()))
 		req.TaskSlot = 64
 	}
-	taskCtx, taskCancel := context.WithCancel(node.ctx)
+	taskCtx, taskCancel := context.WithCancel(tracer.Propagate(ctx, node.ctx))
 	if oldInfo := node.taskManager.LoadOrStoreIndexTask(req.GetClusterID(), req.GetBuildID(), &index.IndexTaskInfo{
 		Cancel: taskCancel,
 		State:  commonpb.IndexState_InProgress,
@@ -330,6 +333,8 @@ func (node *DataNode) createIndexTask(ctx context.Context, req *workerpb.CreateJ
 }
 
 func (node *DataNode) createAnalyzeTask(ctx context.Context, req *workerpb.AnalyzeRequest) (*commonpb.Status, error) {
+	ctx, sp := otel.Tracer(typeutil.DataNodeRole).Start(ctx, "DataNode-createAnalyzeTask")
+	defer sp.End()
 	log.Ctx(ctx).Info("receive analyze job",
 		zap.String("clusterID", req.GetClusterID()),
 		zap.Int64("taskID", req.GetTaskID()),
@@ -350,7 +355,7 @@ func (node *DataNode) createAnalyzeTask(ctx context.Context, req *workerpb.Analy
 		req.TaskSlot = 65535
 	}
 
-	taskCtx, taskCancel := context.WithCancel(node.ctx)
+	taskCtx, taskCancel := context.WithCancel(tracer.Propagate(ctx, node.ctx))
 	if oldInfo := node.taskManager.LoadOrStoreAnalyzeTask(req.GetClusterID(), req.GetTaskID(), &index.AnalyzeTaskInfo{
 		Cancel: taskCancel,
 		State:  indexpb.JobState_JobStateInProgress,
