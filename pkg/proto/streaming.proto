@@ -407,6 +407,7 @@ message CreateProducerRequest {
 message ProduceMessageRequest {
     int64 request_id         = 1;  // request id for reply.
     messages.Message message = 2;  // message to be sent.
+    map<string, string> trace_context = 3; // message trace ctx
 }
 
 // CloseProducerRequest is the request of the CloseProducer RPC.

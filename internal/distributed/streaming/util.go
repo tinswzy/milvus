@@ -4,11 +4,13 @@ import (
 	"context"
 	"sync"
 
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/internal/util/streamingutil/status"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
+	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
 type (
@@ -22,6 +24,8 @@ type (
 // Otherwise, it will be sent as individual messages.
 // !!! This function do not promise the atomicity and deliver order of the messages appending.
 func (u *walAccesserImpl) AppendMessages(ctx context.Context, msgs ...message.MutableMessage) AppendResponses {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "WALAccesser-AppendMessages")
+	defer sp.End()
 	assertValidMessage(msgs...)
 
 	// dispatch the messages into different vchannel.
@@ -83,6 +87,8 @@ func (u *walAccesserImpl) dispatchMessages(msgs ...message.MutableMessage) (map[
 
 // appendToVChannel appends the messages to the specified vchannel.
 func (u *walAccesserImpl) appendToVChannel(ctx context.Context, vchannel string, msgs ...message.MutableMessage) AppendResponses {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "WALAccesser-appendToVChannel")
+	defer sp.End()
 	if len(msgs) == 0 {
 		return types.NewAppendResponseN(0)
 	}
@@ -120,6 +126,8 @@ func (u *walAccesserImpl) appendToVChannel(ctx context.Context, vchannel string,
 
 // appendWithTxn appends the messages to the wal with a transaction.
 func (u *walAccesserImpl) appendWithTxn(ctx context.Context, vchannel string, msgs ...message.MutableMessage) AppendResponses {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "WALAccesser-appendWithTxn")
+	defer sp.End()
 	resp := types.NewAppendResponseN(len(msgs))
 
 	// Otherwise, we start a transaction to append the messages.
