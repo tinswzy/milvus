@@ -81,6 +81,19 @@ func stopRocksmqIfUsed() {
 	}
 }
 
+func forceWoodpeckerMQType() {
+	params := paramtable.Get()
+	current := params.MQCfg.Type.GetValue()
+	if current != "woodpecker" {
+		log.Warn("force override mq.type to woodpecker",
+			zap.String("from", current),
+			zap.String("to", "woodpecker"))
+	}
+	if err := params.Save(params.MQCfg.Type.Key, "woodpecker"); err != nil {
+		panic(err)
+	}
+}
+
 type component interface {
 	healthz.Indicator
 	Prepare() error
@@ -415,6 +428,8 @@ func (mr *MilvusRoles) Run() {
 		paramtable.Init()
 		paramtable.SetRole(mr.ServerType)
 	}
+
+	forceWoodpeckerMQType()
 
 	// Persist immutable configurations at startup, such as mqType paramItem
 	if (mr.EnableRootCoord && mr.EnableDataCoord && mr.EnableQueryCoord) || mr.EnableMixCoord {
