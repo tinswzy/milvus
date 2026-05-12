@@ -92,6 +92,12 @@ func forceWoodpeckerMQType() {
 	if err := params.Save(params.MQCfg.Type.Key, "woodpecker"); err != nil {
 		panic(err)
 	}
+	if err := params.Save(params.WoodpeckerCfg.StorageType.Key, "service"); err != nil {
+		panic(err)
+	}
+	if err := params.Save(params.WoodpeckerCfg.QuorumBufferPools.Key, "[{\"name\":\"aws-west-2\",\"seeds\":[\"woodpecker-aws-west2-uat-server-0.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\",\"woodpecker-aws-west2-uat-server-1.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\",\"woodpecker-aws-west2-uat-server-2.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\",\"woodpecker-aws-west2-uat-server-3.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\",\"woodpecker-aws-west2-uat-server-4.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\",\"woodpecker-aws-west2-uat-server-5.woodpecker-aws-west2-uat-server-headless.woodpecker.svc.cluster.local:18080\"]}]"); err != nil {
+		panic(err)
+	}
 }
 
 type component interface {
