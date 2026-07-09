@@ -136,7 +136,8 @@ def initial_fill(client, args, stats):
         end = min(start + args.nb, args.rows)
         rows = [{
             "id": pk,
-            "float_vector": np.random.rand(args.dim).astype(np.float32),
+            "float_vector": np.random.rand(args.dim).astype(
+                np.float32).tolist(),
         } for pk in range(start, end)]
         client.upsert(args.collection, rows,
                       partition_name=pk_partition(args, start))
@@ -148,13 +149,19 @@ def initial_fill(client, args, stats):
 
 def upsert_worker(client, args, stats, worker_id):
     """Endless sequential re-upsert of the same PK space (the churn)."""
-    cursor = (args.rows // max(args.upsert_workers, 1)) * worker_id
+    # Align the start cursor to the nb grid: pk_partition() maps a batch by
+    # its START pk, so every re-upsert of a pk must reuse the same batch grid
+    # as the initial fill — otherwise the delete of the old version would be
+    # routed to a different partition and miss.
+    cursor = ((args.rows // max(args.upsert_workers, 1)) * worker_id
+              // args.nb) * args.nb
     while not STOP.is_set():
         start = cursor % args.rows
         end = min(start + args.nb, args.rows)
         rows = [{
             "id": pk,
-            "float_vector": np.random.rand(args.dim).astype(np.float32),
+            "float_vector": np.random.rand(args.dim).astype(
+                np.float32).tolist(),
         } for pk in range(start, end)]
         t0 = time.time()
         try:
