@@ -150,4 +150,18 @@ DECLARE_PROMETHEUS_HISTOGRAM_FAMILY(internal_json_filter_latency);
 DECLARE_PROMETHEUS_HISTOGRAM(internal_json_filter_latency_bruteforce);
 DECLARE_PROMETHEUS_HISTOGRAM(internal_json_filter_latency_json_stats);
 
+// issue #49435 debug: LoadDeletedRecord (delete-apply) per-step latency (ms).
+// step = total | parse | pin_ts | pin_pk | scan | read_insert_ts | skiplist_insert
+DECLARE_PROMETHEUS_HISTOGRAM_FAMILY(issue49435_delete_apply_step_latency);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_total_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_parse_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_pin_ts_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_pin_pk_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_scan_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_read_insert_ts_ms);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_skiplist_insert_ms);
+// rows matched by one LoadDeletedRecord call (batch size actually applied)
+DECLARE_PROMETHEUS_HISTOGRAM_FAMILY(issue49435_delete_apply_matched_rows);
+DECLARE_PROMETHEUS_HISTOGRAM(issue49435_delete_apply_matched_rows_all);
+
 }  // namespace milvus::monitor

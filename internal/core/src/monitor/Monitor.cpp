@@ -484,4 +484,63 @@ DEFINE_PROMETHEUS_GAUGE(internal_arrow_io_pool_tasks_total_all,
                         internal_arrow_io_pool_tasks_total,
                         {});
 
+// issue #49435 debug: LoadDeletedRecord (delete-apply) per-step latency.
+// Buckets in ms, 0.1ms .. 160s, to cover warm-fast and starved-slow calls.
+const prometheus::Histogram::BucketBoundaries issue49435MsBuckets = {
+    0.1,  0.25, 0.5,  1,    2.5,   5,     10,    25,    50,    100,
+    250,  500,  1000, 2500, 5000,  10000, 20000, 40000, 80000, 160000};
+const prometheus::Histogram::BucketBoundaries issue49435RowsBuckets = {
+    1000,   5000,    10000,   50000,   100000,
+    200000, 400000,  800000,  1600000, 3200000};
+std::map<std::string, std::string> i49435TotalLabels{{"step", "total"}};
+std::map<std::string, std::string> i49435ParseLabels{{"step", "parse"}};
+std::map<std::string, std::string> i49435PinTsLabels{{"step", "pin_ts"}};
+std::map<std::string, std::string> i49435PinPkLabels{{"step", "pin_pk"}};
+std::map<std::string, std::string> i49435ScanLabels{{"step", "scan"}};
+std::map<std::string, std::string> i49435ReadTsLabels{
+    {"step", "read_insert_ts"}};
+std::map<std::string, std::string> i49435SkiplistLabels{
+    {"step", "skiplist_insert"}};
+DEFINE_PROMETHEUS_HISTOGRAM_FAMILY(
+    issue49435_delete_apply_step_latency,
+    "[cpp][issue49435] LoadDeletedRecord per-step latency in ms")
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(issue49435_delete_apply_total_ms,
+                                         issue49435_delete_apply_step_latency,
+                                         i49435TotalLabels,
+                                         issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(issue49435_delete_apply_parse_ms,
+                                         issue49435_delete_apply_step_latency,
+                                         i49435ParseLabels,
+                                         issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(issue49435_delete_apply_pin_ts_ms,
+                                         issue49435_delete_apply_step_latency,
+                                         i49435PinTsLabels,
+                                         issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(issue49435_delete_apply_pin_pk_ms,
+                                         issue49435_delete_apply_step_latency,
+                                         i49435PinPkLabels,
+                                         issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(issue49435_delete_apply_scan_ms,
+                                         issue49435_delete_apply_step_latency,
+                                         i49435ScanLabels,
+                                         issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(
+    issue49435_delete_apply_read_insert_ts_ms,
+    issue49435_delete_apply_step_latency,
+    i49435ReadTsLabels,
+    issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(
+    issue49435_delete_apply_skiplist_insert_ms,
+    issue49435_delete_apply_step_latency,
+    i49435SkiplistLabels,
+    issue49435MsBuckets)
+DEFINE_PROMETHEUS_HISTOGRAM_FAMILY(
+    issue49435_delete_apply_matched_rows,
+    "[cpp][issue49435] rows matched by one LoadDeletedRecord call")
+DEFINE_PROMETHEUS_HISTOGRAM_WITH_BUCKETS(
+    issue49435_delete_apply_matched_rows_all,
+    issue49435_delete_apply_matched_rows,
+    {},
+    issue49435RowsBuckets)
+
 }  // namespace milvus::monitor

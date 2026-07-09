@@ -10,6 +10,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under the License
 
 #include "ChunkedSegmentSealedImpl.h"
+#include "segcore/DeleteApplyProbe.h"
 #include "segcore/default_fs.h"
 
 #include <cxxabi.h>
@@ -2938,6 +2939,10 @@ void
 ChunkedSegmentSealedImpl::LoadDeletedRecord(const LoadDeletedRecordInfo& info) {
     SCOPE_CGO_CALL_METRIC();
 
+    // issue #49435 probe: decompose where the time goes inside this call.
+    g_delete_apply_probe.Reset();
+    auto probe_total_t0 = std::chrono::steady_clock::now();
+
     AssertInfo(info.row_count > 0, "The row count of deleted record is 0");
     AssertInfo(info.primary_keys, "Deleted primary keys is null");
     AssertInfo(info.timestamps, "Deleted timestamps is null");
@@ -2949,11 +2954,47 @@ ChunkedSegmentSealedImpl::LoadDeletedRecord(const LoadDeletedRecordInfo& info) {
     auto& field_meta = schema_snapshot->operator[](field_id);
     int64_t size = info.row_count;
     std::vector<PkType> pks(size);
+    auto probe_parse_t0 = std::chrono::steady_clock::now();
     ParsePksFromIDs(pks, field_meta.get_data_type(), *info.primary_keys);
+    auto parse_us = ProbeNsSince(probe_parse_t0) / 1000;
     auto timestamps = reinterpret_cast<const Timestamp*>(info.timestamps);
 
     // step 2: push delete info to delete_record
     deleted_record_.LoadPush(pks, timestamps);
+
+    auto& probe = g_delete_apply_probe;
+    LOG_INFO(
+        "[DeleteApplyProbe] segment {} LoadDeletedRecord total_ms={} "
+        "rows={} matched={} parse_us={} pin_ts_us={} pin_pk_us={} "
+        "scan_us={} read_insert_ts_us={} skiplist_insert_us={}",
+        id_,
+        ProbeNsSince(probe_total_t0) / 1000000,
+        size,
+        probe.matched,
+        parse_us,
+        probe.pin_ts_ns / 1000,
+        probe.pin_pk_ns / 1000,
+        probe.scan_ns / 1000,
+        probe.read_insert_ts_ns / 1000,
+        probe.skiplist_insert_ns / 1000);
+
+    // issue #49435: per-step histograms (ms) for Grafana aggregation
+    // (issue49435_delete_apply_step_latency{step=...}).
+    auto total_ns = ProbeNsSince(probe_total_t0);
+    milvus::monitor::issue49435_delete_apply_total_ms.Observe(total_ns / 1e6);
+    milvus::monitor::issue49435_delete_apply_parse_ms.Observe(parse_us / 1e3);
+    milvus::monitor::issue49435_delete_apply_pin_ts_ms.Observe(probe.pin_ts_ns /
+                                                               1e6);
+    milvus::monitor::issue49435_delete_apply_pin_pk_ms.Observe(probe.pin_pk_ns /
+                                                               1e6);
+    milvus::monitor::issue49435_delete_apply_scan_ms.Observe(probe.scan_ns /
+                                                             1e6);
+    milvus::monitor::issue49435_delete_apply_read_insert_ts_ms.Observe(
+        probe.read_insert_ts_ns / 1e6);
+    milvus::monitor::issue49435_delete_apply_skiplist_insert_ms.Observe(
+        probe.skiplist_insert_ns / 1e6);
+    milvus::monitor::issue49435_delete_apply_matched_rows_all.Observe(
+        probe.matched);
 }
 
 void
@@ -3888,7 +3929,14 @@ ChunkedSegmentSealedImpl::search_batch_pks(
         snapshot->commit_ts != 0 ? std::optional<Timestamp>{snapshot->commit_ts}
                                  : std::nullopt;
     auto read_ts = [&](int64_t offset) -> Timestamp {
-        return ReadTimestamp(offset, runtime, effective_commit_ts);
+        // issue #49435 probe: on this branch read_ts is a PER-ROW call that may
+        // pin a cell via the cachinglayer (ReadTimestamp -> column->Span).
+        // pin_ts here accumulates the per-row ts-read total (the up-front
+        // whole-column pin no longer exists after the reopen refactor).
+        auto probe_rts_t0 = std::chrono::steady_clock::now();
+        auto ts = ReadTimestamp(offset, runtime, effective_commit_ts);
+        g_delete_apply_probe.pin_ts_ns += ProbeNsSince(probe_rts_t0);
+        return ts;
     };
 
     // Virtual PK offset maps can resolve pk -> offset directly by bit-extract.
@@ -3942,7 +3990,9 @@ ChunkedSegmentSealedImpl::search_batch_pks(
     auto pk_column = get_column(snapshot->runtime, pk_field_id);
     AssertInfo(pk_column != nullptr, "primary key column not loaded");
 
+    auto probe_pin_pk_t0 = std::chrono::steady_clock::now();
     auto all_chunk_pins = pk_column->GetAllChunks(nullptr);
+    g_delete_apply_probe.pin_pk_ns += ProbeNsSince(probe_pin_pk_t0);
 
     auto timestamp_hit = include_same_ts
                              ? [](const Timestamp& ts1,
@@ -3953,6 +4003,9 @@ ChunkedSegmentSealedImpl::search_batch_pks(
 
     switch (schema_snapshot->get_fields().at(pk_field_id).get_data_type()) {
         case DataType::INT64: {
+            auto probe_scan_t0 = std::chrono::steady_clock::now();
+            auto probe_read0 = g_delete_apply_probe.read_insert_ts_ns;
+            auto probe_ins0 = g_delete_apply_probe.skiplist_insert_ns;
             auto num_chunk = pk_column->num_chunks();
             for (int i = 0; i < num_chunk; ++i) {
                 const auto& pw = all_chunk_pins[i];
@@ -3982,6 +4035,10 @@ ChunkedSegmentSealedImpl::search_batch_pks(
                 }
             }
 
+            g_delete_apply_probe.scan_ns +=
+                ProbeNsSince(probe_scan_t0) -
+                (g_delete_apply_probe.read_insert_ts_ns - probe_read0) -
+                (g_delete_apply_probe.skiplist_insert_ns - probe_ins0);
             break;
         }
         case DataType::VARCHAR: {
