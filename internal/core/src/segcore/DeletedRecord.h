@@ -24,6 +24,7 @@
 #include "common/Common.h"
 #include "common/Schema.h"
 #include "common/Types.h"
+#include "segcore/DeleteApplyProbe.h"
 #include "segcore/Record.h"
 #include "segcore/InsertRecord.h"
 #include "segcore/SegmentInterface.h"
@@ -148,6 +149,7 @@ class DeletedRecord {
             pks,
             timestamps,
             [&](const SegOffset offset, const Timestamp delete_ts) {
+                g_delete_apply_probe.matched++;
                 auto row_id = offset.get();
                 // if already deleted, no need to add new record
                 if (deleted_mask_.size() > row_id && deleted_mask_[row_id]) {
@@ -163,14 +165,17 @@ class DeletedRecord {
                 // are correctly rejected — the row's data only becomes visible
                 // at commit_ts.
                 Timestamp insert_ts = 0;
+                auto probe_t0 = std::chrono::steady_clock::now();
                 if (!insert_record_->timestamps_.empty()) {
                     insert_ts = insert_record_->timestamps_[row_id];
                 } else if (get_insert_timestamp_func_) {
                     insert_ts = get_insert_timestamp_func_(row_id);
                 }
+                g_delete_apply_probe.read_insert_ts_ns += ProbeNsSince(probe_t0);
                 if (insert_ts != 0 && delete_ts <= insert_ts) {
                     return;
                 }
+                auto probe_t1 = std::chrono::steady_clock::now();
                 accessor.insert(std::make_pair(delete_ts, row_id));
                 if constexpr (is_sealed) {
                     Assert(deleted_mask_.size() > 0);
@@ -180,6 +185,7 @@ class DeletedRecord {
                     deleted_mask_.resize(insert_record_->row_count());
                     deleted_mask_.set(row_id);
                 }
+                g_delete_apply_probe.skiplist_insert_ns += ProbeNsSince(probe_t1);
                 removed_num++;
                 mem_add += DELETE_PAIR_SIZE;
             });
