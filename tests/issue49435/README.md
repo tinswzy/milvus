@@ -66,6 +66,31 @@ Suggested server sizing to reproduce: standalone, **8 CPU / 16-17 GB**
 limits (the bug is resource-starvation-driven; oversized nodes reproduce
 more slowly or not at all).
 
+### Timing & acceleration
+
+QA-faithful defaults (upsert 0.5 batch/s, query 0.5 qps) reproduce in
+**~1.5-2h** from cold start (measured on the 07-08 QA run: first
+LoadDeletedRecord>3s spike 1h45m after pod start, recurring hourly).
+
+The gates are (a) treadmill cadence: one full PK sweep before segments
+become mostly-dead (2M / 900 rows/s = 37 min), (b) buffered-delete volume
+per fresh-segment replay, (c) starvation onset (CPU near the 8-core cap +
+memory climbing past ~8 GB). A 505 only needs the apply stretched past the
+**3s** tsafe stall timeout — not the full 26s.
+
+Accelerated invocation targeting **first 505 in ~30-45 min**:
+
+```bash
+python3 repro_upsert_strong_query.py --uri http://<milvus>:19530 \
+  --upsert-interval 0.3 \                   # sweep 2M in ~5 min (7x treadmill)
+  --query-workers 4 --query-interval 0.5 \  # ~8 qps cold count(*) scans
+  --delete-workers 1 --delete-interval 1.0  # fatten the delete buffer
+```
+
+Escalation order if still quiet after ~1h: `--upsert-interval 0` (WAL
+backpressure becomes the natural limiter) → drop server CPU limit to 6 →
+`--rows 1000000` (halves the sweep, keeps ~200K-row segments).
+
 ## Closed loop
 
 1. Deploy this branch's image, run the driver → collect

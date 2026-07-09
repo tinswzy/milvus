@@ -186,6 +186,38 @@ def upsert_worker(client, args, stats, worker_id):
             STOP.wait(pause)
 
 
+def delete_worker(client, args, stats, worker_id):
+    """Optional accelerator: explicit delete storm.
+
+    Pure deletes are much cheaper per row than upserts (no vector payload),
+    so this fattens the delegator delete buffer several-fold -> each fresh
+    compacted segment replays a much larger batch -> the tsafe-freezing
+    apply crosses the 3s stall threshold sooner. Rows deleted here are
+    re-inserted by the upsert sweep on its next pass.
+    """
+    # offset the cursor half a PK-space away from the upsert sweep so we
+    # mostly delete rows that exist (not ones just rewritten)
+    cursor = ((args.rows // 2 + (args.rows // 4) * worker_id)
+              // args.nb) * args.nb
+    while not STOP.is_set():
+        start = cursor % args.rows
+        end = min(start + args.nb, args.rows)
+        t0 = time.time()
+        try:
+            client.delete(args.collection,
+                          ids=list(range(start, end)),
+                          partition_name=pk_partition(args, start))
+            stats.ok((time.time() - t0) * 1000)
+        except MilvusException as e:
+            stats.fail(e)
+        except Exception as e:  # noqa: BLE001
+            stats.fail(e)
+        cursor = 0 if end >= args.rows else end
+        pause = args.delete_interval - (time.time() - t0)
+        if pause > 0:
+            STOP.wait(pause)
+
+
 def query_worker(client, args, stats):
     """Strong-consistency count(*) in a tight loop (the victim)."""
     while not STOP.is_set():
@@ -224,6 +256,10 @@ def main():
     ap.add_argument("--query-interval", type=float, default=4.0,
                     help="seconds per query per worker; with 2 workers this "
                          "matches the QA-measured ~0.45 qps. 0=max")
+    ap.add_argument("--delete-workers", type=int, default=0,
+                    help="optional accelerator: explicit delete-storm "
+                         "workers (see delete_worker docstring)")
+    ap.add_argument("--delete-interval", type=float, default=1.0)
     ap.add_argument("--query-timeout", type=float, default=60.0)
     ap.add_argument("--duration", type=int, default=0,
                     help="seconds to run after fill; 0 = forever")
@@ -240,6 +276,7 @@ def main():
     build_collection(client, args)
 
     up_stats, q_stats = Stats("upsert"), Stats("strong-count(*)")
+    del_stats = Stats("delete")
     if not args.skip_fill:
         initial_fill(client, args, up_stats)
 
@@ -249,6 +286,10 @@ def main():
         c = MilvusClient(uri=args.uri, token=args.token or None)
         workers.append(threading.Thread(
             target=upsert_worker, args=(c, args, up_stats, i), daemon=True))
+    for i in range(args.delete_workers):
+        c = MilvusClient(uri=args.uri, token=args.token or None)
+        workers.append(threading.Thread(
+            target=delete_worker, args=(c, args, del_stats, i), daemon=True))
     for _ in range(args.query_workers):
         c = MilvusClient(uri=args.uri, token=args.token or None)
         workers.append(threading.Thread(
@@ -264,6 +305,9 @@ def main():
         while not STOP.is_set():
             time.sleep(10)
             print(time.strftime("%H:%M:%S"), up_stats.snapshot_and_reset())
+            if args.delete_workers:
+                print(time.strftime("%H:%M:%S"),
+                      del_stats.snapshot_and_reset())
             print(time.strftime("%H:%M:%S"), q_stats.snapshot_and_reset())
             with q_stats.lock:
                 for ts, msg in q_stats.err_samples:
