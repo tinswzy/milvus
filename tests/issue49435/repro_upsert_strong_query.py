@@ -25,9 +25,16 @@
 #   pip install pymilvus numpy
 #   python3 repro_upsert_strong_query.py --uri http://127.0.0.1:19530
 #
-# Tunables (defaults mirror the QA case):
+# Tunables (defaults mirror the QA case, rates calibrated from the actual
+# QA reproduction measured in Prometheus on 2026-07-08: upsert 0.45 batch/s,
+# strong count(*) 0.45 qps, first 505 ~1-2h after start, mem 6->8->12GB):
 #   --rows 2000000 --nb 2000 --dim 128 --shards 2 --partitions 16
-#   --query-workers 8 --upsert-workers 1 --duration 0 (0 = run forever)
+#   --upsert-workers 1 --upsert-interval 2.0
+#   --query-workers 2  --query-interval 4.0
+#   --duration 0 (0 = run forever)
+# Server environment REQUIRED to reproduce: Linux standalone with cgroup
+# limits cpus=8 memory=17g (resource starvation is part of the trigger),
+# MinIO object storage, default StorageV2 + streaming(woodpecker).
 
 import argparse
 import random
@@ -173,6 +180,10 @@ def upsert_worker(client, args, stats, worker_id):
         except Exception as e:  # noqa: BLE001 - keep the loop alive
             stats.fail(e)
         cursor = 0 if end >= args.rows else end
+        # pace to the QA-measured rate (~0.45 batch/s); 0 = as fast as possible
+        pause = args.upsert_interval - (time.time() - t0)
+        if pause > 0:
+            STOP.wait(pause)
 
 
 def query_worker(client, args, stats):
@@ -187,10 +198,12 @@ def query_worker(client, args, stats):
             stats.ok((time.time() - t0) * 1000)
         except MilvusException as e:
             stats.fail(e)
-            time.sleep(0.2)
         except Exception as e:  # noqa: BLE001
             stats.fail(e)
-            time.sleep(0.2)
+        # pace to the QA-measured rate (~0.45 qps total); 0 = tight loop
+        pause = args.query_interval - (time.time() - t0)
+        if pause > 0:
+            STOP.wait(pause)
 
 
 def main():
@@ -204,7 +217,13 @@ def main():
     ap.add_argument("--shards", type=int, default=2)
     ap.add_argument("--partitions", type=int, default=16)
     ap.add_argument("--upsert-workers", type=int, default=1)
-    ap.add_argument("--query-workers", type=int, default=8)
+    ap.add_argument("--query-workers", type=int, default=2)
+    ap.add_argument("--upsert-interval", type=float, default=2.0,
+                    help="seconds per upsert batch per worker; QA-measured "
+                         "steady state is ~0.45 batch/s total (2.2s). 0=max")
+    ap.add_argument("--query-interval", type=float, default=4.0,
+                    help="seconds per query per worker; with 2 workers this "
+                         "matches the QA-measured ~0.45 qps. 0=max")
     ap.add_argument("--query-timeout", type=float, default=60.0)
     ap.add_argument("--duration", type=int, default=0,
                     help="seconds to run after fill; 0 = forever")
