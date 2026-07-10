@@ -160,10 +160,18 @@ def upsert_worker(client, args, stats, worker_id):
     # its START pk, so every re-upsert of a pk must reuse the same batch grid
     # as the initial fill — otherwise the delete of the old version would be
     # routed to a different partition and miss.
-    cursor = ((args.rows // max(args.upsert_workers, 1)) * worker_id
+    n_batches = max(args.rows // args.nb, 1)
+    if args.churn_mode == "subset":
+        n_batches = max(int(n_batches * args.churn_fraction), 1)
+    space = n_batches * args.nb
+    cursor = ((space // max(args.upsert_workers, 1)) * worker_id
               // args.nb) * args.nb
+    rng = random.Random(49435 + worker_id)
     while not STOP.is_set():
-        start = cursor % args.rows
+        if args.churn_mode == "random":
+            start = rng.randrange(n_batches) * args.nb
+        else:
+            start = cursor % space
         end = min(start + args.nb, args.rows)
         rows = [{
             "id": pk,
@@ -179,7 +187,7 @@ def upsert_worker(client, args, stats, worker_id):
             stats.fail(e)
         except Exception as e:  # noqa: BLE001 - keep the loop alive
             stats.fail(e)
-        cursor = 0 if end >= args.rows else end
+        cursor = 0 if end >= space else end
         # pace to the QA-measured rate (~0.45 batch/s); 0 = as fast as possible
         pause = args.upsert_interval - (time.time() - t0)
         if pause > 0:
@@ -249,6 +257,18 @@ def main():
     ap.add_argument("--shards", type=int, default=2)
     ap.add_argument("--partitions", type=int, default=16)
     ap.add_argument("--upsert-workers", type=int, default=1)
+    ap.add_argument("--churn-mode", choices=["sequential", "random", "subset"],
+                    default="sequential",
+                    help="sequential: sweep the whole PK space in order "
+                         "(every pk re-upserted every cycle; replay window "
+                         "stays bounded). random: pick a random nb-aligned "
+                         "batch each time (mirrors the fouram concurrent "
+                         "case; straggler pks pin the replay window -> "
+                         "reproduces #49435). subset: only churn the first "
+                         "churn-fraction of the PK space (cold rows pin the "
+                         "window permanently).")
+    ap.add_argument("--churn-fraction", type=float, default=0.05,
+                    help="fraction of PK space churned in subset mode")
     ap.add_argument("--query-workers", type=int, default=2)
     ap.add_argument("--upsert-interval", type=float, default=2.0,
                     help="seconds per upsert batch per worker; QA-measured "
