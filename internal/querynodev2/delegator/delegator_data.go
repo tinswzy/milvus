@@ -1065,30 +1065,89 @@ func (sd *shardDelegator) loadStreamDelete(ctx context.Context,
 		)
 	}
 
-	// === Phase 3: Catch-up new entries + flush + add distribution under RLock (fast — milliseconds) ===
+	// === Phase 2.5: Flush the bulk snapshot payload WITHOUT the lock ===
+	// This is where the expensive worker.Delete → LoadDeltaData apply happens
+	// (potentially tens of seconds for huge replays, see issue #49435).
+	// Holding deleteMut across it would starve ProcessDelete — the single
+	// writer that also advances tsafe — and freeze the whole channel.
+	for i := range infos {
+		if err := forwarders[i].Flush(); err != nil {
+			return err
+		}
+	}
+
+	// Per-segment catch-up cursors. Timestamp-based catch-up is robust against
+	// delete buffer eviction (Put → evict discards old tail while we run
+	// lock-free). Item.Ts comes from WAL TSO, monotonically increasing, so
+	// ListAfter(lastTs + 1) precisely captures only newer records.
+	catchUpTs := make([]uint64, len(infos))
+	for i, info := range infos {
+		catchUpTs[i] = segmentEffectiveTs(info)
+		if snapshots[i].snapshotMaxTs > 0 {
+			catchUpTs[i] = snapshots[i].snapshotMaxTs + 1
+		}
+	}
+
+	// === Phase 3a: lock-free catch-up rounds ===
+	// Chase the live delete stream without the lock until the remainder is a
+	// trickle: each round only processes deletes that arrived during the
+	// previous round, so the remainder shrinks geometrically. Whatever is
+	// left after the last round is bounded by one round's arrivals and is
+	// handled under the lock in Phase 3b.
+	const maxChaseRounds = 3
+	for round := 0; round < maxChaseRounds; round++ {
+		totalNew := 0
+		for i, info := range infos {
+			candidate := idCandidates[info.GetSegmentID()]
+			newRecords := sd.deleteBuffer.ListAfter(catchUpTs[i])
+			if len(newRecords) == 0 {
+				continue
+			}
+			start := time.Now()
+			tsHit, bfHit, err := sd.processDeleteRecords(candidate, newRecords, forwarders[i])
+			if err != nil {
+				return err
+			}
+			if err := forwarders[i].Flush(); err != nil {
+				return err
+			}
+			catchUpTs[i] = newRecords[len(newRecords)-1].Ts + 1
+			totalNew += len(newRecords)
+			log.Info(ctx, "forward delete to worker (phase 3a: lock-free catch-up)...",
+				mlog.String("channel", info.InsertChannel),
+				mlog.FieldSegmentID(info.GetSegmentID()),
+				mlog.Int("round", round),
+				mlog.Int64("tsHitDeleteRowNum", tsHit),
+				mlog.Int64("bfHitDeleteRowNum", bfHit),
+				mlog.Int64("bfCost", time.Since(start).Milliseconds()),
+			)
+		}
+		if totalNew == 0 {
+			break
+		}
+	}
+
+	// === Phase 3b: final catch-up + flush + add distribution under RLock ===
+	// Structurally identical to the previous Phase 3, so the atomicity
+	// invariant is unchanged: while we hold the read lock no ProcessDelete
+	// (writer) can interleave, hence no delete can fall in the gap between
+	// "deletes applied up to now" and "segment visible in distribution".
+	// The difference is the payload: everything older was already applied
+	// lock-free above, so the locked work is bounded by one chase round's
+	// arrivals (typically zero to a few hundred rows — micro/milliseconds).
 	sd.deleteMut.RLock()
 	defer sd.deleteMut.RUnlock()
 
 	for i, info := range infos {
 		candidate := idCandidates[info.GetSegmentID()]
-
-		// Use timestamp-based catch-up: fetch records added after the snapshot's max timestamp.
-		// This is robust against delete buffer eviction (Put → evict discards old tail during Phase 2).
-		// Index-based approach (allRecords[snapshotLen:]) would panic or miss data if eviction occurs.
-		// Item.Ts comes from WAL TSO, monotonically increasing and unique per ProcessDelete call,
-		// so ListAfter(snapshotMaxTs + 1) precisely captures only new records.
-		catchUpTs := segmentEffectiveTs(info)
-		if snapshots[i].snapshotMaxTs > 0 {
-			catchUpTs = snapshots[i].snapshotMaxTs + 1
-		}
-		newRecords := sd.deleteBuffer.ListAfter(catchUpTs)
+		newRecords := sd.deleteBuffer.ListAfter(catchUpTs[i])
 		if len(newRecords) > 0 {
 			start := time.Now()
 			tsHit, bfHit, err := sd.processDeleteRecords(candidate, newRecords, forwarders[i])
 			if err != nil {
 				return err
 			}
-			log.Info(ctx, "forward delete to worker (phase 3: catch-up)...",
+			log.Info(ctx, "forward delete to worker (phase 3b: final catch-up)...",
 				mlog.String("channel", info.InsertChannel),
 				mlog.FieldSegmentID(info.GetSegmentID()),
 				mlog.Int64("tsHitDeleteRowNum", tsHit),
@@ -1097,7 +1156,7 @@ func (sd *shardDelegator) loadStreamDelete(ctx context.Context,
 			)
 		}
 
-		// Flush once per segment after both phases are done
+		// Flush the final remainder for this segment (small by construction).
 		if err := forwarders[i].Flush(); err != nil {
 			return err
 		}
