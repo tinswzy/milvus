@@ -3928,15 +3928,46 @@ ChunkedSegmentSealedImpl::search_batch_pks(
     auto effective_commit_ts =
         snapshot->commit_ts != 0 ? std::optional<Timestamp>{snapshot->commit_ts}
                                  : std::nullopt;
+    // issue #49435 (fix): batch-pin the timestamp column ONCE from the same
+    // published snapshot instead of calling ReadTimestamp() per matched row.
+    // The per-row variant does a cachinglayer pin (get_column +
+    // GetChunkIDByOffset + Span) for every matched row, which measured ~60%
+    // of the whole LoadDeletedRecord call under the delete-replay
+    // amplification. Pins are refcounts on the snapshot's cells, so reopen's
+    // atomic publication is not blocked; the per-row read below becomes a
+    // raw array access. probe: pin_ts_ns is the one-time batch pin cost.
+    auto runtime_ts_data = runtime != nullptr ? runtime->timestamps : nullptr;
+    bool ts_from_array = runtime_ts_data != nullptr && !runtime_ts_data->empty();
+    std::vector<cachinglayer::PinWrapper<Chunk*>> ts_chunk_pins;
+    std::vector<int64_t> ts_chunk_offsets;
+    if (!effective_commit_ts && !ts_from_array) {
+        auto ts_column = get_column(runtime, TimestampFieldID);
+        AssertInfo(ts_column != nullptr, "timestamp data is not ready");
+        auto probe_pin_ts_t0 = std::chrono::steady_clock::now();
+        ts_chunk_pins = ts_column->GetAllChunks(nullptr);
+        g_delete_apply_probe.pin_ts_ns += ProbeNsSince(probe_pin_ts_t0);
+        auto num_ts_chunks = ts_column->num_chunks();
+        ts_chunk_offsets.resize(num_ts_chunks + 1, 0);
+        for (int64_t c = 0; c < num_ts_chunks; c++) {
+            ts_chunk_offsets[c + 1] =
+                ts_chunk_offsets[c] + ts_column->chunk_row_nums(c);
+        }
+    }
     auto read_ts = [&](int64_t offset) -> Timestamp {
-        // issue #49435 probe: on this branch read_ts is a PER-ROW call that may
-        // pin a cell via the cachinglayer (ReadTimestamp -> column->Span).
-        // pin_ts here accumulates the per-row ts-read total (the up-front
-        // whole-column pin no longer exists after the reopen refactor).
-        auto probe_rts_t0 = std::chrono::steady_clock::now();
-        auto ts = ReadTimestamp(offset, runtime, effective_commit_ts);
-        g_delete_apply_probe.pin_ts_ns += ProbeNsSince(probe_rts_t0);
-        return ts;
+        if (effective_commit_ts) {
+            return *effective_commit_ts;
+        }
+        if (ts_from_array) {
+            return (*runtime_ts_data)[offset];
+        }
+        auto num_ts_chunks = static_cast<int64_t>(ts_chunk_pins.size());
+        int64_t c = 0;
+        while (c < num_ts_chunks - 1 && offset >= ts_chunk_offsets[c + 1]) {
+            ++c;
+        }
+        auto* data = reinterpret_cast<const Timestamp*>(
+            ts_chunk_pins[c].get()->RawData());
+        return data[offset - ts_chunk_offsets[c]];
     };
 
     // Virtual PK offset maps can resolve pk -> offset directly by bit-extract.
