@@ -626,7 +626,7 @@ func TestTaskScheduler_SkipAllocTimestamp(t *testing.T) {
 			collID:           collID,
 			consistencyLevel: commonpb.ConsistencyLevel_Eventually,
 		}, nil)
-	mockMetaCache.EXPECT().AllocID(mock.Anything).Return(1, nil).Twice()
+	mockMetaCache.EXPECT().AllocID(mock.Anything).Return(1, nil).Times(3)
 
 	t.Run("query", func(t *testing.T) {
 		qt := &queryTask{
@@ -659,6 +659,29 @@ func TestTaskScheduler_SkipAllocTimestamp(t *testing.T) {
 
 		err := queue.Enqueue(st)
 		assert.NoError(t, err)
+	})
+
+	t.Run("insert", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		blocking := &blockingTsoAllocator{}
+		queue.tsoAllocatorIns = blocking
+		defer func() { queue.tsoAllocatorIns = tsoAllocatorIns }()
+
+		it := &insertTask{
+			ctx: ctx,
+			insertMsg: &BaseInsertTask{
+				InsertRequest: &msgpb.InsertRequest{
+					Base: &commonpb.MsgBase{},
+				},
+			},
+		}
+
+		err := queue.Enqueue(it)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(0), blocking.calls.Load(),
+			"insert enqueue must not reach the Proxy TSO allocator")
 	})
 
 	mockMetaCache.EXPECT().AllocID(mock.Anything).Return(0, errors.New("mock error")).Once()

@@ -60,6 +60,12 @@ func (it *insertTask) Type() commonpb.MsgType {
 	return it.insertMsg.Base.MsgType
 }
 
+// CanSkipAllocTimestamp returns true because StreamingNode assigns the
+// authoritative timetick before appending the insert message to WAL.
+func (it *insertTask) CanSkipAllocTimestamp() bool {
+	return true
+}
+
 func (it *insertTask) BeginTs() Timestamp {
 	return it.insertMsg.BeginTimestamp
 }
