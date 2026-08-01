@@ -2098,6 +2098,8 @@ type proxyConfig struct {
 	NameValidationAllowedChars        ParamItem `refreshable:"true"`
 	RoleNameValidationAllowedChars    ParamItem `refreshable:"true"`
 	MaxTaskNum                        ParamItem `refreshable:"false"`
+	InsertTsoEnabled                  ParamItem `refreshable:"false"`
+	InsertPChanStatsEnabled           ParamItem `refreshable:"false"`
 	DDLConcurrency                    ParamItem `refreshable:"true"`
 	DCLConcurrency                    ParamItem `refreshable:"true"`
 	ShardLeaderCacheInterval          ParamItem `refreshable:"false"`
@@ -2320,6 +2322,24 @@ func (p *proxyConfig) init(base *BaseTable) {
 		Export:       true,
 	}
 	p.MaxTaskNum.Init(base.mgr)
+
+	p.InsertTsoEnabled = ParamItem{
+		Key:          "proxy.insertTsoEnabled",
+		Version:      "3.0.0",
+		DefaultValue: "false",
+		Doc:          "Whether Proxy allocates a TSO timestamp for Insert tasks. When false, StreamingNode assigns the authoritative timetick before appending to WAL.",
+		Export:       true,
+	}
+	p.InsertTsoEnabled.Init(base.mgr)
+
+	p.InsertPChanStatsEnabled = ParamItem{
+		Key:          "proxy.insertPChanStatsEnabled",
+		Version:      "3.0.0",
+		DefaultValue: "false",
+		Doc:          "Whether Proxy tracks legacy pChannel timestamp statistics for Insert tasks. Changing this setting requires restarting Proxy.",
+		Export:       true,
+	}
+	p.InsertPChanStatsEnabled.Init(base.mgr)
 
 	p.DDLConcurrency = ParamItem{
 		Key:          "proxy.ddlConcurrency",

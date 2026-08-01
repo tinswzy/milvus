@@ -226,6 +226,54 @@ var (
 			Buckets:   subMsBuckets, // unit: ms
 		}, []string{nodeIDLabelName})
 
+	// ProxyInsertTimestampAllocationLatency records the latency of the Insert
+	// timestamp/message-ID allocation stage, split by Proxy TSO and local modes.
+	ProxyInsertTimestampAllocationLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "insert_timestamp_allocation_latency",
+			Help:      "latency of the Insert timestamp and message ID allocation stage",
+			Buckets:   subMsBuckets, // unit: ms
+		}, []string{nodeIDLabelName, "mode"})
+
+	ProxyInsertTimestampAllocationCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "insert_timestamp_allocation_count",
+			Help:      "count of Insert timestamp and message ID allocations",
+		}, []string{nodeIDLabelName, "mode"})
+
+	// ProxyDMLQueueStatsLockWaitLatency and ProxyDMLQueueStatsLockHoldLatency
+	// separate contention from work performed while holding the legacy pChannel
+	// statistics lock.
+	ProxyDMLQueueStatsLockWaitLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "dml_queue_stats_lock_wait_latency",
+			Help:      "latency waiting to acquire the DML queue pChannel statistics lock",
+			Buckets:   subMsBuckets, // unit: ms
+		}, []string{nodeIDLabelName, "operation"})
+
+	ProxyDMLQueueStatsLockHoldLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "dml_queue_stats_lock_hold_latency",
+			Help:      "latency holding the DML queue pChannel statistics lock",
+			Buckets:   subMsBuckets, // unit: ms
+		}, []string{nodeIDLabelName, "operation"})
+
+	ProxyDMLQueueStatsPathCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "dml_queue_stats_path_count",
+			Help:      "count of DML tasks using or bypassing legacy pChannel statistics",
+		}, []string{nodeIDLabelName, msgTypeLabelName, "mode"})
+
 	// ProxyFunctionCall records the number of times the function of the DDL operation was executed, like `CreateCollection`.
 	ProxyFunctionCall = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -523,6 +571,11 @@ func RegisterProxy(registry *prometheus.Registry) {
 	registry.MustRegister(ProxySyncTimeTickLag)
 	registry.MustRegister(ProxyApplyPrimaryKeyLatency)
 	registry.MustRegister(ProxyApplyTimestampLatency)
+	registry.MustRegister(ProxyInsertTimestampAllocationLatency)
+	registry.MustRegister(ProxyInsertTimestampAllocationCount)
+	registry.MustRegister(ProxyDMLQueueStatsLockWaitLatency)
+	registry.MustRegister(ProxyDMLQueueStatsLockHoldLatency)
+	registry.MustRegister(ProxyDMLQueueStatsPathCount)
 
 	registry.MustRegister(ProxyFunctionCall)
 	registry.MustRegister(ProxyGRPCLatency)

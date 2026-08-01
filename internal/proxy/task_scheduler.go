@@ -28,6 +28,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"go.opentelemetry.io/otel"
 
+	"github.com/milvus-io/milvus-proto/go-api/v3/commonpb"
 	"github.com/milvus-io/milvus/pkg/v3/metrics"
 	"github.com/milvus-io/milvus/pkg/v3/mlog"
 	"github.com/milvus-io/milvus/pkg/v3/util/conc"
@@ -209,19 +210,34 @@ func (queue *baseTaskQueue) Enqueue(t task) error {
 
 	var ts Timestamp
 	var id UniqueID
-	if t.CanSkipAllocTimestamp() {
+	skipAllocTimestamp := t.CanSkipAllocTimestamp()
+	isInsert := t.Type() == commonpb.MsgType_Insert
+	allocationMode := "tso"
+	if skipAllocTimestamp {
+		allocationMode = "local"
+	}
+	var allocationStart time.Time
+	if isInsert {
+		allocationStart = time.Now()
+	}
+	if skipAllocTimestamp {
 		ts = tsoutil.ComposeTS(time.Now().UnixMilli(), 0)
 		id, err = globalMetaCache.AllocID(t.TraceCtx())
-		if err != nil {
-			return err
-		}
 	} else {
 		ts, err = queue.tsoAllocatorIns.AllocOne(t.TraceCtx())
-		if err != nil {
-			return err
+		if err == nil {
+			// we always use same msg id and ts for now.
+			id = UniqueID(ts)
 		}
-		// we always use same msg id and ts for now.
-		id = UniqueID(ts)
+	}
+	if isInsert {
+		nodeID := strconv.FormatInt(paramtable.GetNodeID(), 10)
+		metrics.ProxyInsertTimestampAllocationLatency.WithLabelValues(nodeID, allocationMode).
+			Observe(float64(time.Since(allocationStart).Microseconds()) / 1000)
+		metrics.ProxyInsertTimestampAllocationCount.WithLabelValues(nodeID, allocationMode).Inc()
+	}
+	if err != nil {
+		return err
 	}
 	t.SetTs(ts)
 	t.SetID(id)
@@ -287,6 +303,32 @@ type dmTaskQueue struct {
 	pChanStatisticsInfos map[pChan]*pChanStatInfo
 }
 
+const (
+	dmlStatsOperationEnqueue  = "enqueue"
+	dmlStatsOperationComplete = "complete"
+	dmlStatsOperationRead     = "read"
+	dmlStatsModeTracked       = "tracked"
+	dmlStatsModeBypassed      = "bypassed"
+)
+
+func shouldTrackPChanStats(t task) bool {
+	return t.Name() != InsertTaskName || Params.ProxyCfg.InsertPChanStatsEnabled.GetAsBool()
+}
+
+func observeDMLStatsLock(operation string, waitDuration, holdDuration time.Duration) {
+	nodeID := strconv.FormatInt(paramtable.GetNodeID(), 10)
+	metrics.ProxyDMLQueueStatsLockWaitLatency.WithLabelValues(nodeID, operation).
+		Observe(float64(waitDuration.Microseconds()) / 1000)
+	metrics.ProxyDMLQueueStatsLockHoldLatency.WithLabelValues(nodeID, operation).
+		Observe(float64(holdDuration.Microseconds()) / 1000)
+}
+
+func observeDMLStatsPath(t task, mode string) {
+	metrics.ProxyDMLQueueStatsPathCount.WithLabelValues(
+		strconv.FormatInt(paramtable.GetNodeID(), 10), t.Type().String(), mode,
+	).Inc()
+}
+
 func (queue *dmTaskQueue) updateMetrics() {
 	queue.utLock.RLock()
 	unissuedTasksNum := queue.unissuedTasks.Len()
@@ -303,6 +345,11 @@ func (queue *dmTaskQueue) Enqueue(t task) error {
 	// This statsLock has two functions:
 	//	1) Protect member pChanStatisticsInfos
 	//	2) Serialize the timestamp allocation for dml tasks
+	if !shouldTrackPChanStats(t) {
+		err := queue.baseTaskQueue.Enqueue(t)
+		observeDMLStatsPath(t, dmlStatsModeBypassed)
+		return err
+	}
 
 	// 1. set the current pChannels for this dmTask
 	dmt := t.(dmlTask)
@@ -313,15 +360,25 @@ func (queue *dmTaskQueue) Enqueue(t task) error {
 	}
 
 	// 2. enqueue dml task
+	waitStart := time.Now()
 	queue.statsLock.Lock()
-	defer queue.statsLock.Unlock()
+	waitDuration := time.Since(waitStart)
+	holdStart := time.Now()
 	err = queue.baseTaskQueue.Enqueue(t)
 	if err != nil {
+		holdDuration := time.Since(holdStart)
+		queue.statsLock.Unlock()
+		observeDMLStatsLock(dmlStatsOperationEnqueue, waitDuration, holdDuration)
+		observeDMLStatsPath(t, dmlStatsModeTracked)
 		return err
 	}
 	// 3. commit will use pChannels got previously when preAdding and will definitely succeed
 	pChannels := dmt.getChannels()
 	queue.commitPChanStats(dmt, pChannels)
+	holdDuration := time.Since(holdStart)
+	queue.statsLock.Unlock()
+	observeDMLStatsLock(dmlStatsOperationEnqueue, waitDuration, holdDuration)
+	observeDMLStatsPath(t, dmlStatsModeTracked)
 	// there's indeed a possibility that the collection info cache was expired after preAddPChanStats
 	// but considering root coord knows everything about meta modification, invalid stats appended after the meta changed
 	// will be discarded by root coord and will not lead to inconsistent state
@@ -330,18 +387,30 @@ func (queue *dmTaskQueue) Enqueue(t task) error {
 
 func (queue *dmTaskQueue) PopActiveTask(taskID UniqueID) task {
 	queue.atLock.Lock()
-	defer queue.atLock.Unlock()
 	t, ok := queue.activeTasks[taskID]
-	if ok {
-		queue.statsLock.Lock()
-		defer queue.statsLock.Unlock()
-
-		delete(queue.activeTasks, taskID)
-		mlog.Debug(t.TraceCtx(), "Proxy dmTaskQueue popPChanStats", mlog.FieldTaskID(t.ID()))
-		queue.popPChanStats(t)
-	} else {
+	if !ok {
+		queue.atLock.Unlock()
 		mlog.Warn(context.TODO(), "Proxy task not in active task list!", mlog.FieldTaskID(taskID))
+		return t
 	}
+
+	if !shouldTrackPChanStats(t) {
+		delete(queue.activeTasks, taskID)
+		queue.atLock.Unlock()
+		return t
+	}
+
+	waitStart := time.Now()
+	queue.statsLock.Lock()
+	waitDuration := time.Since(waitStart)
+	holdStart := time.Now()
+	delete(queue.activeTasks, taskID)
+	mlog.Debug(t.TraceCtx(), "Proxy dmTaskQueue popPChanStats", mlog.FieldTaskID(t.ID()))
+	queue.popPChanStats(t)
+	holdDuration := time.Since(holdStart)
+	queue.statsLock.Unlock()
+	queue.atLock.Unlock()
+	observeDMLStatsLock(dmlStatsOperationComplete, waitDuration, holdDuration)
 	return t
 }
 
@@ -403,14 +472,19 @@ func (queue *dmTaskQueue) popPChanStats(t task) {
 
 func (queue *dmTaskQueue) getPChanStatsInfo() (map[pChan]*pChanStatistics, error) {
 	ret := make(map[pChan]*pChanStatistics)
+	waitStart := time.Now()
 	queue.statsLock.RLock()
-	defer queue.statsLock.RUnlock()
+	waitDuration := time.Since(waitStart)
+	holdStart := time.Now()
 	for cName, info := range queue.pChanStatisticsInfos {
 		ret[cName] = &pChanStatistics{
 			minTs: info.minTs,
 			maxTs: info.maxTs,
 		}
 	}
+	holdDuration := time.Since(holdStart)
+	queue.statsLock.RUnlock()
+	observeDMLStatsLock(dmlStatsOperationRead, waitDuration, holdDuration)
 	return ret, nil
 }
 

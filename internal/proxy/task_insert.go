@@ -60,10 +60,11 @@ func (it *insertTask) Type() commonpb.MsgType {
 	return it.insertMsg.Base.MsgType
 }
 
-// CanSkipAllocTimestamp returns true because StreamingNode assigns the
-// authoritative timetick before appending the insert message to WAL.
+// CanSkipAllocTimestamp returns true when Proxy-side Insert TSO allocation is
+// disabled. StreamingNode assigns the authoritative timetick before appending
+// the insert message to WAL on the new write path.
 func (it *insertTask) CanSkipAllocTimestamp() bool {
-	return true
+	return !Params.ProxyCfg.InsertTsoEnabled.GetAsBool()
 }
 
 func (it *insertTask) BeginTs() Timestamp {

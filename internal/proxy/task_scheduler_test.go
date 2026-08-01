@@ -702,6 +702,79 @@ func TestTaskScheduler_SkipAllocTimestamp(t *testing.T) {
 	})
 }
 
+func TestDmTaskQueue_InsertTsoAndPChanStatsConfig(t *testing.T) {
+	oldMetaCache := globalMetaCache
+	defer func() { globalMetaCache = oldMetaCache }()
+
+	testCases := []struct {
+		name         string
+		tsoEnabled   bool
+		statsEnabled bool
+		tsoCalls     int64
+		statsEntries int
+	}{
+		{name: "tso_on_stats_on", tsoEnabled: true, statsEnabled: true, tsoCalls: 1, statsEntries: 1},
+		{name: "tso_off_stats_on", tsoEnabled: false, statsEnabled: true, tsoCalls: 0, statsEntries: 1},
+		{name: "tso_off_stats_off", tsoEnabled: false, statsEnabled: false, tsoCalls: 0, statsEntries: 0},
+		{name: "tso_on_stats_off", tsoEnabled: true, statsEnabled: false, tsoCalls: 1, statsEntries: 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NoError(t, Params.Save(Params.ProxyCfg.InsertTsoEnabled.Key, fmt.Sprint(tc.tsoEnabled)))
+			defer Params.Reset(Params.ProxyCfg.InsertTsoEnabled.Key)
+			assert.NoError(t, Params.Save(Params.ProxyCfg.InsertPChanStatsEnabled.Key, fmt.Sprint(tc.statsEnabled)))
+			defer Params.Reset(Params.ProxyCfg.InsertPChanStatsEnabled.Key)
+
+			const collectionID = int64(100)
+			channels := []pChan{"test-pchannel"}
+			metaCache := NewMockCache(t)
+			globalMetaCache = metaCache
+			channelManager := NewMockChannelsMgr(t)
+			if tc.statsEnabled {
+				metaCache.EXPECT().GetCollectionID(mock.Anything, "", "test-collection").Return(collectionID, nil).Once()
+				channelManager.EXPECT().getChannels(collectionID).Return(channels, nil).Once()
+			}
+			if !tc.tsoEnabled {
+				metaCache.EXPECT().AllocID(mock.Anything).Return(int64(200), nil).Once()
+			}
+
+			tsoAllocator := &countingTsoAllocator{timestamp: 300}
+			queue := newDmTaskQueue(tsoAllocator)
+			insert := &insertTask{
+				ctx: context.Background(),
+				insertMsg: &BaseInsertTask{
+					InsertRequest: &msgpb.InsertRequest{
+						Base:           &commonpb.MsgBase{},
+						CollectionName: "test-collection",
+					},
+				},
+				chMgr: channelManager,
+			}
+
+			assert.NoError(t, queue.Enqueue(insert))
+			assert.Equal(t, tc.tsoCalls, tsoAllocator.calls.Load())
+			assert.Len(t, queue.pChanStatisticsInfos, tc.statsEntries)
+
+			queued := queue.PopUnissuedTask()
+			assert.NotNil(t, queued)
+			queue.AddActiveTask(queued)
+			assert.Same(t, queued, queue.PopActiveTask(queued.ID()))
+			assert.Empty(t, queue.pChanStatisticsInfos)
+		})
+	}
+}
+
+type countingTsoAllocator struct {
+	calls     atomic.Int64
+	timestamp Timestamp
+}
+
+func (a *countingTsoAllocator) AllocOne(context.Context) (Timestamp, error) {
+	a.calls.Add(1)
+	return a.timestamp, nil
+}
+
 // blockingTsoAllocator blocks AllocOne on the caller's context so that a test
 // can distinguish "we reached the TSO allocator" from "we fast-failed".
 type blockingTsoAllocator struct {
