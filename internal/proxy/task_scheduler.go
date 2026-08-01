@@ -304,11 +304,13 @@ type dmTaskQueue struct {
 }
 
 const (
-	dmlStatsOperationEnqueue  = "enqueue"
-	dmlStatsOperationComplete = "complete"
-	dmlStatsOperationRead     = "read"
-	dmlStatsModeTracked       = "tracked"
-	dmlStatsModeBypassed      = "bypassed"
+	dmlStatsOperationEnqueue   = "enqueue"
+	dmlStatsOperationComplete  = "complete"
+	dmlStatsOperationRead      = "read"
+	dmlActiveOperationAdd      = "add"
+	dmlActiveOperationComplete = "complete"
+	dmlStatsModeTracked        = "tracked"
+	dmlStatsModeBypassed       = "bypassed"
 )
 
 func shouldTrackPChanStats(t task) bool {
@@ -320,6 +322,14 @@ func observeDMLStatsLock(operation string, waitDuration, holdDuration time.Durat
 	metrics.ProxyDMLQueueStatsLockWaitLatency.WithLabelValues(nodeID, operation).
 		Observe(float64(waitDuration.Microseconds()) / 1000)
 	metrics.ProxyDMLQueueStatsLockHoldLatency.WithLabelValues(nodeID, operation).
+		Observe(float64(holdDuration.Microseconds()) / 1000)
+}
+
+func observeDMLActiveLock(operation string, waitDuration, holdDuration time.Duration) {
+	nodeID := strconv.FormatInt(paramtable.GetNodeID(), 10)
+	metrics.ProxyDMLQueueActiveLockWaitLatency.WithLabelValues(nodeID, operation).
+		Observe(float64(waitDuration.Microseconds()) / 1000)
+	metrics.ProxyDMLQueueActiveLockHoldLatency.WithLabelValues(nodeID, operation).
 		Observe(float64(holdDuration.Microseconds()) / 1000)
 }
 
@@ -385,18 +395,41 @@ func (queue *dmTaskQueue) Enqueue(t task) error {
 	return nil
 }
 
-func (queue *dmTaskQueue) PopActiveTask(taskID UniqueID) task {
+func (queue *dmTaskQueue) AddActiveTask(t task) {
+	waitStart := time.Now()
 	queue.atLock.Lock()
+	waitDuration := time.Since(waitStart)
+	holdStart := time.Now()
+	taskID := t.ID()
+	if _, ok := queue.activeTasks[taskID]; ok {
+		mlog.Warn(t.TraceCtx(), "Proxy task with tID already in active task list!", mlog.Int64("ID", taskID))
+	}
+	queue.activeTasks[taskID] = t
+	t.SetExecutingTime()
+	holdDuration := time.Since(holdStart)
+	queue.atLock.Unlock()
+	observeDMLActiveLock(dmlActiveOperationAdd, waitDuration, holdDuration)
+}
+
+func (queue *dmTaskQueue) PopActiveTask(taskID UniqueID) task {
+	activeWaitStart := time.Now()
+	queue.atLock.Lock()
+	activeWaitDuration := time.Since(activeWaitStart)
+	activeHoldStart := time.Now()
 	t, ok := queue.activeTasks[taskID]
 	if !ok {
+		activeHoldDuration := time.Since(activeHoldStart)
 		queue.atLock.Unlock()
+		observeDMLActiveLock(dmlActiveOperationComplete, activeWaitDuration, activeHoldDuration)
 		mlog.Warn(context.TODO(), "Proxy task not in active task list!", mlog.FieldTaskID(taskID))
 		return t
 	}
 
 	if !shouldTrackPChanStats(t) {
 		delete(queue.activeTasks, taskID)
+		activeHoldDuration := time.Since(activeHoldStart)
 		queue.atLock.Unlock()
+		observeDMLActiveLock(dmlActiveOperationComplete, activeWaitDuration, activeHoldDuration)
 		return t
 	}
 
@@ -409,8 +442,10 @@ func (queue *dmTaskQueue) PopActiveTask(taskID UniqueID) task {
 	queue.popPChanStats(t)
 	holdDuration := time.Since(holdStart)
 	queue.statsLock.Unlock()
+	activeHoldDuration := time.Since(activeHoldStart)
 	queue.atLock.Unlock()
 	observeDMLStatsLock(dmlStatsOperationComplete, waitDuration, holdDuration)
+	observeDMLActiveLock(dmlActiveOperationComplete, activeWaitDuration, activeHoldDuration)
 	return t
 }
 

@@ -266,6 +266,24 @@ var (
 			Buckets:   subMsBuckets, // unit: ms
 		}, []string{nodeIDLabelName, "operation"})
 
+	ProxyDMLQueueActiveLockWaitLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "dml_queue_active_lock_wait_latency",
+			Help:      "latency waiting to acquire the DML queue active-task lock",
+			Buckets:   subMsBuckets, // unit: ms
+		}, []string{nodeIDLabelName, "operation"})
+
+	ProxyDMLQueueActiveLockHoldLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.ProxyRole,
+			Name:      "dml_queue_active_lock_hold_latency",
+			Help:      "latency holding the DML queue active-task lock",
+			Buckets:   subMsBuckets, // unit: ms
+		}, []string{nodeIDLabelName, "operation"})
+
 	ProxyDMLQueueStatsPathCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
@@ -575,6 +593,8 @@ func RegisterProxy(registry *prometheus.Registry) {
 	registry.MustRegister(ProxyInsertTimestampAllocationCount)
 	registry.MustRegister(ProxyDMLQueueStatsLockWaitLatency)
 	registry.MustRegister(ProxyDMLQueueStatsLockHoldLatency)
+	registry.MustRegister(ProxyDMLQueueActiveLockWaitLatency)
+	registry.MustRegister(ProxyDMLQueueActiveLockHoldLatency)
 	registry.MustRegister(ProxyDMLQueueStatsPathCount)
 
 	registry.MustRegister(ProxyFunctionCall)
