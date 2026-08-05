@@ -5276,11 +5276,12 @@ exceeds this threshold, the largest growing segment will be sealed.`,
 		Key:     "dataCoord.sealPolicy.channel.blockingL0EntryNum",
 		Version: "2.5.7",
 		// #49435 EXPERIMENT (temporary — revert before merge): upstream default 5000000.
-		// Lowered ~10x so the earliest (L0-frontier-blocking) growing segment seals much
-		// sooner -> delete-baking frontier advances -> segment deltalogs fill ->
-		// compaction delete_covered_ts engages instead of staying 0. Was letting ~5M
-		// deletes pile up (matching the observed ~4.6M delete buffer) before sealing.
-		DefaultValue: "500000",
+		// Seal the earliest (L0-frontier-blocking) growing segment much sooner so the
+		// delete-baking frontier advances -> segment deltalogs fill -> compaction
+		// delete_covered_ts engages. The 500000 run reached only ~55% engaged (baking
+		// still lost the race vs mix churn, dormant compactions all had empty input
+		// deltalogs), so tighten further to 200000.
+		DefaultValue: "200000",
 		Doc: `If the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
@@ -5291,7 +5292,9 @@ exceeds this threshold, the earliest growing segments will be sealed.`,
 		Key:     "dataCoord.sealPolicy.channel.blockingL0SizeInMB",
 		Version: "2.5.7",
 		// #49435 EXPERIMENT (temporary — revert before merge): upstream default 64.
-		DefaultValue: "8",
+		// Lowered to 4 (~200K entries worth) so the size threshold stays aligned with
+		// blockingL0EntryNum=200000 rather than firing first.
+		DefaultValue: "4",
 		Doc: `The size threshold in MB, if the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
