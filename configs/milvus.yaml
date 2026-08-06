@@ -667,10 +667,10 @@ dataCoord:
       growingSegmentsMemSize: 4096
       # If the total entry number of l0 logs of each shard
       # exceeds this threshold, the earliest growing segments will be sealed.
-      blockingL0EntryNum: 5000000
+      blockingL0EntryNum: 500000
       # The size threshold in MB, if the total entry number of l0 logs of each shard
       # exceeds this threshold, the earliest growing segments will be sealed.
-      blockingL0SizeInMB: 64
+      blockingL0SizeInMB: 10
   autoUpgradeSegmentIndex: false # whether auto upgrade segment index to index engine's version
   forceRebuildSegmentIndex: false # force rebuild segment index to specify index engine's version
   # if param forceRebuildSegmentIndex is enabled, the vector index will be rebuilt to aligned with targetVecIndexVersion.
