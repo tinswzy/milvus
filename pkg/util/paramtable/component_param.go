@@ -5280,7 +5280,7 @@ exceeds this threshold, the largest growing segment will be sealed.`,
 		// sooner -> delete-baking frontier advances -> segment deltalogs fill ->
 		// compaction delete_covered_ts engages instead of staying 0. Was letting ~5M
 		// deletes pile up (matching the observed ~4.6M delete buffer) before sealing.
-		DefaultValue: "500000",
+		DefaultValue: "8000000",
 		Doc: `If the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
@@ -5291,7 +5291,7 @@ exceeds this threshold, the earliest growing segments will be sealed.`,
 		Key:     "dataCoord.sealPolicy.channel.blockingL0SizeInMB",
 		Version: "2.5.7",
 		// #49435 EXPERIMENT (temporary — revert before merge): upstream default 64.
-		DefaultValue: "8",
+		DefaultValue: "160",
 		Doc: `The size threshold in MB, if the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
