@@ -5276,12 +5276,11 @@ exceeds this threshold, the largest growing segment will be sealed.`,
 		Key:     "dataCoord.sealPolicy.channel.blockingL0EntryNum",
 		Version: "2.5.7",
 		// #49435 EXPERIMENT (temporary — revert before merge): upstream default 5000000.
-		// Seal the earliest (L0-frontier-blocking) growing segment much sooner so the
-		// delete-baking frontier advances -> segment deltalogs fill -> compaction
-		// delete_covered_ts engages. The 500000 run reached only ~55% engaged (baking
-		// still lost the race vs mix churn, dormant compactions all had empty input
-		// deltalogs), so tighten further to 200000.
-		DefaultValue: "200000",
+		// Seal the earliest (L0-frontier-blocking) growing segment sooner so the
+		// delete-baking frontier advances and compaction delete_covered_ts engages.
+		// Effective value is set in configs/milvus.yaml (which overrides this default);
+		// 500K variant for comparison vs the 200K branch.
+		DefaultValue: "500000",
 		Doc: `If the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
@@ -5292,9 +5291,9 @@ exceeds this threshold, the earliest growing segments will be sealed.`,
 		Key:     "dataCoord.sealPolicy.channel.blockingL0SizeInMB",
 		Version: "2.5.7",
 		// #49435 EXPERIMENT (temporary — revert before merge): upstream default 64.
-		// Lowered to 4 (~200K entries worth) so the size threshold stays aligned with
-		// blockingL0EntryNum=200000 rather than firing first.
-		DefaultValue: "4",
+		// 10 (~500K entries worth) aligned with blockingL0EntryNum. Effective value is
+		// set in configs/milvus.yaml, which overrides this default; 500K variant.
+		DefaultValue: "10",
 		Doc: `The size threshold in MB, if the total entry number of l0 logs of each shard
 exceeds this threshold, the earliest growing segments will be sealed.`,
 		Export: true,
